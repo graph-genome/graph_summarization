@@ -3,24 +3,21 @@ import gfapy
 import pickle
 import subprocess
 import io
+import os
 import tempfile
 
 class GFA:
     def __init__(self, gfa: gfapy.Gfa):
         self.gfa = gfa
     
-    @classmethod
-    def load_from_pickle(cls, file: str):
-        #with open(file, 'rb') as pickle_file:
-        gfa = pickle.load(open(file, 'rb'))
-        graph = cls(gfa)
-        return graph
+#    @classmethod
+#    def load_from_pickle(cls, file: str):
+#        graph = pickle.load(open(file, 'rb'))
+#        return graph
 
     @classmethod
     def load_form_xg(cls, file: str, xg_bin: str):
-        #self.gfa = XGWrapper.load(file, xg_bin)
         gfa = gfapy.Gfa()
-        # = subprocess.check_output([xg_bin, "-i", file, "--gfa-out"])
         process = subprocess.Popen([xg_bin, "-i", file, "--gfa-out"], stdout=subprocess.PIPE)
         with io.open(process.stdout.fileno(), closefd=False) as stream:
             [gfa.add_line(line) for line in stream]
@@ -36,18 +33,16 @@ class GFA:
         graph = cls(gfa)
         return graph
 
-    def save_as_pickle(self, outfile: str):
-        with open(outfile, 'wb') as pickle_file:
-            pickle.dump(self.gfa, pickle_file)
-#        pickle.dump(self.gfa, file)
+#    def save_as_pickle(self, outfile: str):
+#        with open(outfile, 'wb') as pickle_file:
+#            pickle.dump(self.gfa, pickle_file, protocol=2)
 
     def save_as_xg(self, file: str, xg_bin:str):
-        with tempfile.NamedTemporaryFile(mode="w+") as f:
+        with tempfile.NamedTemporaryFile(mode="w+t", delete=False) as f:
             f.write(self.gfa.to_gfa1_s())
-            process = subprocess.check_output([xg_bin, "-o", file, "-g", f.name])
-        #process = subprocess.Popen([xg_bin, "-o", file, "-g", "-"], stdin=subprocess.PIPE)
-        #output = process.communicate(self.gfa.to_gfa1_s())
-        #return output
+
+        process = subprocess.check_output([xg_bin, "-o", file, "-g", f.name])
+        os.remove(f.name)
 
     def save_as_gfa(self, file:str):
         self.gfa.to_file(file)
