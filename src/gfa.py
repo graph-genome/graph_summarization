@@ -25,6 +25,7 @@ class GFA:
         if process.returncode != 0:
             raise OSError()
         graph = cls(gfa)
+        process.stdout.close()
         return graph
 
     @classmethod
