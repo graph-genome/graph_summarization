@@ -37,3 +37,4 @@ test/*.pickle
 test/xg
 
 __pycache__
+desktop.ini

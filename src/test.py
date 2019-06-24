@@ -1,5 +1,48 @@
 import unittest
-from gfa import GFA
+# from gfa import GFA
+
+from src.graph import Graph
+
+def G(rep):
+    """Short hand for Graph construction that returns a slice"""
+    if len(rep) > 1:
+        raise ValueError("Warning: only the first slice will be returned.", rep)
+    return Graph(rep)[0]
+
+class GraphTest(unittest.TestCase):
+    factory_input = [['ACGT', {1, 2, 3, 4}],
+                     ['C', {1, 2, 4}, 'T', {3}],  # SNP
+                     ['GGA', {1, 2, 3, 4}],  # anchor
+                     ['C', {1, 2, 4}, '', {3}],  # repeated from [1] SNP
+                     ['AGTACG', {1, 2, 3}, 'CGTACT', {4}],  # different membership from [3]
+                     ['TTG', {1, 2, 3, 4}],  # anchor
+                     ['A', {1, 2}, 'C', {4, 5}, 'T', {3}],  # third allele
+                     ['GG', {1, 2}, 'TT', {3, 4}],  # equal size nodes
+                     ['TATA', {1, 2, 3, 4}]]  # anchor
+    def example_graph(self):
+        # [Slice([Node('ACGT', {1,2,3,4})]),
+        #               Slice([Node('C',{1,2,4}),Node('T', {3})]),
+        #               Slice([Node('GGA',{1,2,3,4})]),
+        #               Slice([Node('C',{1,2,4}),Node('', {3})]),
+        #               Slice([Node('AGTACG',{1,2,3}), Node('CGTACT',{4})]),
+        #               Slice([Node('TTG',{1,2,3,4})]) ]
+
+        base_graph = Graph(self.factory_input)
+        return base_graph
+    def test_graph_factory(self):
+        base_graph = self.example_graph()
+        assert base_graph == str(self.factory_input), \
+            ('\n' + repr(base_graph) + '\n' + str(self.factory_input))
+        g_double = Graph(eval(str(base_graph)))
+        #str(g_double) == str(base_graph)  # WARN: could be order sensitive, don't worry if it fails
+        assert g_double == base_graph
+        assert g_double == self.factory_input
+        assert g_double == str(self.factory_input)
+
+    def test_G(self):
+        with self.assertRaises(ValueError):
+            G([['C', {1, 2, 3, 4}], ['T', {12, 16}]])
+
 
 class GFATest(unittest.TestCase):
     """ test class of gfa.py
@@ -30,7 +73,7 @@ class GFATest(unittest.TestCase):
             if s1 is None:
                 different = True
 
-"""
+        """
         for s in gfa1.edges:
             s2 = gfa2.edges[gfa2.edges.index(s)]
             if s2 is None:
@@ -44,7 +87,7 @@ class GFATest(unittest.TestCase):
 #            s1 = gfa1.edges[]
             if gfa1.edges.index(s) is None:
                 different = True
-"""        
+        """
         return different
 
 if __name__ == "__main__":
