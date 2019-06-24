@@ -17,9 +17,6 @@ class Graph:
     def load_form_xg(self, file: str, xg_bin: str):
         raise NotImplementedError()
 
-    def dump():
-        raise NotImplementedError()
-
     def save_as_pickle():
         pickle.dump(self, file)
 
@@ -32,9 +29,14 @@ class Node:
         self.sequence = sequence
         self.paths = paths
         #self.strand = strand
-    
+
     def alternative_nodes(self):
         #WIP
+        pass
+
+    def get_position_on_path(self, path: Path):
+        #WIP
+        pass
 
 class Path:
     def __init__(self, name: str, nodes: list(Node)):

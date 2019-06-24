@@ -29,6 +29,22 @@ class GFATest(unittest.TestCase):
             s1 = gfa1.segment(s)
             if s1 is None:
                 different = True
+
+"""
+        for s in gfa1.edges:
+            s2 = gfa2.edges[gfa2.edges.index(s)]
+            if s2 is None:
+                different = True
+            if s.diff(s2):
+                different = True
+                for diff in s.diff(s2):
+                    print(diff)
+        for s in gfa2.edges:
+            print(s)
+#            s1 = gfa1.edges[]
+            if gfa1.edges.index(s) is None:
+                different = True
+"""        
         return different
 
 if __name__ == "__main__":
