@@ -36,12 +36,20 @@ class Node:
     def __hash__(self):
         return hash(self.seq)
 
-def merge(self, smaller: Node) -> Node:
-    m = Node(self.seq, self.paths.union(smaller.paths))
-    # TODO: penalize paths with nucleotide mismatch
-    return m
-Node.merge = merge  # Typing is picky about order of declaration
+    # Typing is picky about order of declaration, but strings bypass this PEP484
+    def merge_minor(self, minor_allele: 'Node') -> 'Node':
+        m = Node(self.seq, self.paths.union(minor_allele.paths))
+        # TODO: penalize paths with nucleotide mismatch
+        return m
 
+    def intersection(self, downstream: 'Node') -> 'Node':
+        m = Node(self.seq + downstream.seq,
+                 self.paths.intersection(downstream.paths))
+        return m
+
+    def union(self, downstream: 'Node') -> 'Node':
+        return Node(self.seq + downstream.seq,
+                 self.paths.union(downstream.paths))
 
 class Slice:
     def __init__(self, nodes: Iterable[Node]):
@@ -101,16 +109,19 @@ class Graph:
             cmd = eval(cmd)
         for sl in cmd:
             current_slice = []
-            if isinstance(sl[0], Node):  # already Nodes, don't need to build
-                current_slice = sl
+            if isinstance(sl, Slice):
+                self.slices.append(sl)
             else:
-                try:
-                    for i in range(0, len(sl), 2):
-                        current_slice.append(Node(sl[i], sl[i + 1]))
-                except IndexError:
-                    raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
+                if isinstance(sl[0], Node):  # already Nodes, don't need to build
+                    current_slice = sl
+                else:
+                    try:
+                        for i in range(0, len(sl), 2):
+                            current_slice.append(Node(sl[i], sl[i + 1]))
+                    except IndexError:
+                        raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
 
-            self.slices.append(Slice(current_slice))
+                self.slices.append(Slice(current_slice))
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""

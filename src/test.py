@@ -9,6 +9,7 @@ def G(rep):
     return Graph(rep)[0]
 
 class GraphTest(unittest.TestCase):
+    # Path 5 is sometimes introduced as a tie breaker for Slice.secondary()
     factory_input = [['ACGT', {1, 2, 3, 4}],
                      ['C', {1, 2, 4}, 'T', {3}],  # SNP
                      ['GGA', {1, 2, 3, 4}],  # anchor
@@ -17,7 +18,10 @@ class GraphTest(unittest.TestCase):
                      ['TTG', {1, 2, 3, 4}],  # [5] anchor
                      ['A', {1, 2}, 'C', {4, 5}, 'T', {3}],  # [6] third allele
                      ['GG', {1, 2}, 'TT', {3, 4}],  # [7] equal size nodes
-                     ['TATA', {1, 2, 3, 4}]]  # anchor
+                     ['C',{1, 2, 3, 5}, 'T',{4}], # [8] path slip
+                     ['C',{1, 2, 5}, 'T',{3, 4}], # [9] path slip
+                     ['C',{1, 2, 3}, 'T',{4}], # [10]path slip
+                     ['TATA', {1, 2, 3, 4}]]  # [11] anchor
     def example_graph(self):
         # [Slice([Node('ACGT', {1,2,3,4})]),
         #               Slice([Node('C',{1,2,4}),Node('T', {3})]),
