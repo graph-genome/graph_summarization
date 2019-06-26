@@ -3,6 +3,15 @@ from itertools import zip_longest
 import pickle
 import sys
 
+class NoAnchorError(ValueError):
+    pass
+class PathOverlapError(ValueError):
+    pass
+class NoOverlapError(PathOverlapError):
+    pass
+class NodeMissingError(ValueError):
+    pass
+
 class Node:
     def __init__(self, seq: str, paths: Iterable[int]):
         assert isinstance(seq, str), seq
@@ -69,10 +78,14 @@ class Slice:
     biggest = primary  # alias method
 
     def secondary(self):
+        if len(self.nodes) < 2:
+            raise NodeMissingError("Secondary requested when there is no alternative", self.nodes)
         biggest = self.primary()
         return max((x for x in self.nodes if x != biggest), key=len)  # When they're the same size, take the next one
 
     def smallest(self):
+        if len(self.nodes) < 2:
+            raise NodeMissingError("Smallest node requested when there is no alternative", self.nodes)
         biggest = self.primary()
         return min((x for x in self.nodes if x != biggest),
                    key=len)  # when they're the same size it will take the last listed
