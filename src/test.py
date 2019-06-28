@@ -1,7 +1,7 @@
 import unittest
-# from gfa import GFA
 
 from src.graph import Graph
+from src.gfa import GFA
 
 def G(rep):
     """Short hand for Graph construction that returns a slice"""
@@ -49,16 +49,22 @@ class GFATest(unittest.TestCase):
     """
 
     def test_gfa(self):
-        ### Usage
         self.maxDiff = None
         location_of_xg = "test/xg"
-        graph = GFA.load_from_gfa("test/test.gfa")
+        graph = GFA.load_from_gfa("../test/test.gfa")
         graph.save_as_xg("test/test.xg", location_of_xg)
-        graph2 = GFA.load_form_xg("test/test.xg", location_of_xg)
+        graph2 = GFA.load_form_xg("../test/test.xg", location_of_xg)
         self.assertFalse(self.is_different(graph.gfa, graph2.gfa))
 #        self.assertEqual(len(graph.gfa.to_gfa1_s().split("\n")), len(graph2.gfa.to_gfa1_s().split("\n")))
 
-    def is_different(self, gfa1, gfa2):
+    def test_load_gfa_to_graph(self):
+        gfa = GFA.load_from_gfa("../test/test.gfa")
+        graph = gfa.to_graph
+        print(graph)
+        self.assertIsNotNone(graph)
+
+    @staticmethod
+    def is_different(gfa1, gfa2):
         different = False
         for s in gfa1.segments:
             s2 = gfa2.segment(s)

@@ -124,7 +124,6 @@ class Graph:
         raise NotImplementedError()
 
 
-
 class Path:
     """TODO: Paths have not been implemented yet."""
     def __init__(self, name: str, nodes: List[Node]):
