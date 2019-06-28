@@ -1,6 +1,6 @@
 import unittest
 
-from src.graph import Graph
+from src.graph import Graph, Slice, Node
 from src.gfa import GFA
 
 def G(rep):
@@ -20,14 +20,18 @@ class GraphTest(unittest.TestCase):
                      ['GG', {1, 2}, 'TT', {3, 4}],  # equal size nodes
                      ['TATA', {1, 2, 3, 4}]]  # anchor
     def example_graph(self):
-        # [Slice([Node('ACGT', {1,2,3,4})]),
-        #               Slice([Node('C',{1,2,4}),Node('T', {3})]),
-        #               Slice([Node('GGA',{1,2,3,4})]),
-        #               Slice([Node('C',{1,2,4}),Node('', {3})]),
-        #               Slice([Node('AGTACG',{1,2,3}), Node('CGTACT',{4})]),
-        #               Slice([Node('TTG',{1,2,3,4})]) ]
+        factory_input = [Slice([Node('ACGT', {1,2,3,4})]),
+                       Slice([Node('C',{1,2,4}),Node('T', {3})]),
+                       Slice([Node('GGA',{1,2,3,4})]),
+                       Slice([Node('C',{1,2,4}),Node('', {3})]),
+                       Slice([Node('AGTACG',{1,2,3}), Node('CGTACT',{4})]),
+                       Slice([Node('TTG',{1,2,3,4})]),
+                       Slice([Node('A', {1, 2}), Node('C', {4, 5}), Node('T', {3})]),  # third allele
+                       Slice([Node('GG', {1, 2}), Node('TT', {3, 4})]),  # equal size nodes
+                       Slice([Node('TATA', {1, 2, 3, 4})])  # anchor
+                          ]
 
-        base_graph = Graph(self.factory_input)
+        base_graph = Graph.load_from_slices(factory_input)
         return base_graph
     def test_graph_factory(self):
         base_graph = self.example_graph()
@@ -60,8 +64,10 @@ class GFATest(unittest.TestCase):
     def test_load_gfa_to_graph(self):
         gfa = GFA.load_from_gfa("../test/test.gfa")
         graph = gfa.to_graph
-        print(graph)
-        self.assertIsNotNone(graph)
+        x = 'x'
+        y = 'y'
+        z = 'z'
+        self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
 
     @staticmethod
     def is_different(gfa1, gfa2):

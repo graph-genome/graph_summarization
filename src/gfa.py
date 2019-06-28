@@ -155,15 +155,7 @@ class GFA:
                 else:
                     current_slice.add_node(node_hash[node])
 
-        # [Slice([Node('ACGT', {1,2,3,4})]),
-        #               Slice([Node('C',{1,2,4}),Node('T', {3})]),
-        #               Slice([Node('GGA',{1,2,3,4})]),
-        #               Slice([Node('C',{1,2,4}),Node('', {3})]),
-        #               Slice([Node('AGTACG',{1,2,3}), Node('CGTACT',{4})]),
-        #               Slice([Node('TTG',{1,2,3,4})]) ]
-        print(factory_input)
-
-        base_graph = Graph(factory_input)
+        base_graph = Graph.load_from_slices(factory_input)
         return base_graph
 
 

@@ -102,6 +102,12 @@ class Graph:
 
             self.slices.append(Slice(current_slice))
 
+    @classmethod
+    def load_from_slices(cls, slices):
+        graph = cls([])
+        graph.slices = slices
+        return graph
+
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
         return self.slices.__repr__()
