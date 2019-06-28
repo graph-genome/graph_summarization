@@ -38,6 +38,9 @@ class Slice:
     def __init__(self, nodes: Iterable[Node]):
         self.nodes = set(nodes)
 
+    def add_node(self, node: Node):
+        self.nodes.add(node)
+
     def alternatives(self, main):
         return self.nodes.difference({main})
 
