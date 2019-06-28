@@ -135,22 +135,23 @@ class GFA:
 
         node_stack = topological_sort_helper.topologicalSort()
 
-        print(path_dict)
-        print(node_stack)
-
-        # Cluster nodes as multiple slices according to the result of topological sort.
+        # Cluster nodes as multiple slices according to the result of the topological sort.
         factory_input = []
         current_slice = Slice([])
         for node in node_stack:
-            # If completely matched with the whole graph, then it becomes the core node that is shared in all paths.
             if len(path_dict[node]) == len(self.gfa.paths):
                 if len(current_slice.nodes) > 0:
                     factory_input.append(current_slice)
                 factory_input.append(Slice([node_hash[node]]))
                 current_slice = Slice([])
             else:
-                if path_dict[node] in [x.paths for x in current_slice.nodes]:
-                    factory_input.append(current_slice)
+                all_set = set()
+                for items in [x.paths for x in current_slice.nodes]:
+                    all_set = all_set | items
+                if set(path_dict[node]) & all_set != set():
+                    if len(current_slice.nodes) > 0:
+                        current_slice.add_node(Node("", set([x.name for x in self.gfa.paths]) - all_set))
+                        factory_input.append(current_slice)
                     current_slice = Slice([node_hash[node]])
                 else:
                     current_slice.add_node(node_hash[node])
