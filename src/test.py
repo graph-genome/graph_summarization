@@ -77,6 +77,19 @@ class GFATest(unittest.TestCase):
         graph = gfa.to_graph
         self.assertIsNotNone(graph)
 
+    def test_load_gfa_via_xg(self):
+        location_of_xg = "../test/xg"
+        graph = GFA.load_from_gfa("../test/test.gfa")
+        graph.save_as_xg("../test/test.xg", location_of_xg)
+        graph2 = GFA.load_form_xg("../test/test.xg", location_of_xg)
+        graph = graph2.to_graph
+        x = 'x'
+        y = 'y'
+        z = 'z'
+        self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}],
+                                 ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
+                                 ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
+
     @staticmethod
     def is_different(gfa1, gfa2):
         different = False

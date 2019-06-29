@@ -24,15 +24,13 @@ class TopologicalSort:
         self.nodes = {}
         self.V = 0
 
-    #        self.V = vertices  # No. of vertices
-
     # function to add an edge to graph
     def add_edge(self, u, v):
         self.graph[u].append(v)
         self.nodes[u] = 1
         self.nodes[v] = 1
-        # A recursive function used by topologicalSort
 
+    # A recursive function used by topologicalSort
     def topologicalSortUtil(self, v, visited, stack):
 
         # Mark the current node as visited.
@@ -43,15 +41,13 @@ class TopologicalSort:
             if visited[i] == False:
                 self.topologicalSortUtil(i, visited, stack)
 
-                # Push current vertex to stack which stores result
+        # Push current vertex to stack which stores result
         stack.insert(0, v)
 
-        # The function to do Topological Sort. It uses recursive
-
-    # topologicalSortUtil()
+    # The function to do Topological Sort. It uses recursive
     def topologicalSort(self):
         # Mark all the vertices as not visited
-        #visited = [False] * len(self.nodes.keys())
+        # visited = [False] * len(self.nodes.keys())
         stack = []
         visited = defaultdict(lambda: False)
 
@@ -61,7 +57,7 @@ class TopologicalSort:
             if visited[v] == False:
                 self.topologicalSortUtil(v, visited, stack)
 
-                # Print contents of stack
+        # Print contents of stack
         return stack
 
 
@@ -79,7 +75,7 @@ class GFA:
         gfa = gfapy.Gfa()
         process = subprocess.Popen([xg_bin, "-i", file, "--gfa-out"], stdout=subprocess.PIPE)
         with io.open(process.stdout.fileno(), closefd=False) as stream:
-            [gfa.add_line(line) for line in stream]
+            [gfa.add_line(line.rstrip()) for line in stream if line != ""]
         process.wait()
         if process.returncode != 0:
             raise OSError()
@@ -103,6 +99,7 @@ class GFA:
 
         process = subprocess.check_output([xg_bin, "-o", file, "-g", f.name])
         os.remove(f.name)
+        return process
 
     def save_as_gfa(self, file: str):
         self.gfa.to_file(file)
