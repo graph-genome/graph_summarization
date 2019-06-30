@@ -72,6 +72,12 @@ class GFATest(unittest.TestCase):
         z = 'z'
         self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
 
+    def test_export_as_gfa(self):
+        gfa = GFA.load_from_gfa("../test/test.gfa")
+        graph = gfa.to_graph
+        new_gfa = GFA.from_graph(graph)
+        self.assertFalse(self.is_different(gfa.gfa, new_gfa.gfa))
+
     def test_load_gfa_to_graph_2(self):
         gfa = GFA.load_from_gfa("../test/test2.gfa")
         graph = gfa.to_graph
@@ -105,6 +111,10 @@ class GFATest(unittest.TestCase):
             s1 = gfa1.segment(s)
             if s1 is None:
                 different = True
+#        for p in gfa1.paths:
+#            from IPython import embed
+#            embed()
+#            s = p.
 
         """
         for s in gfa1.edges:

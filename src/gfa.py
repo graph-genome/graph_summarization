@@ -104,6 +104,22 @@ class GFA:
     def save_as_gfa(self, file: str):
         self.gfa.to_file(file)
 
+    @classmethod
+    def from_graph(cls, graph: Graph):
+        gfa = gfapy.Gfa()
+        path_list = defaultdict(list)
+        segment_id = 0
+        for slice in graph.slices:
+            for node in slice.nodes:
+                segment_id += 1
+                gfa.add_line('\t'.join(['S', str(segment_id), node.seq]))
+                for path in node.paths:
+                    path_list[path].append(segment_id)
+        for path_key in path_list:
+            path_values = [str(x) for x in path_list[path_key]]
+            gfa.add_line('\t'.join(['P', path_key, "+,".join(path_values)+"+", ",".join(['*' for x in path_values])]))
+        return cls(gfa)
+
     @property
     def to_graph(self):
         topological_sort_helper = TopologicalSort()
