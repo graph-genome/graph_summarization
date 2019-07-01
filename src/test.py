@@ -111,12 +111,19 @@ class GFATest(unittest.TestCase):
             s1 = gfa1.segment(s)
             if s1 is None:
                 different = True
-#        for p in gfa1.paths:
-#            from IPython import embed
-#            embed()
-#            s = p.
-
         """
+        for p in gfa1.paths:
+            p2 = [i for i in gfa2.paths if i.name == p.name]
+            if p2 is None:
+                different = True
+            for i, l in enumerate(p.links):
+                l2 = p2[0].links[i]
+                if l.line.from_segment.name != l2.line.from_segment.name:
+                    print(l, l2)
+                    different = True
+                if l.line.to_segment.name != l.line.to_segment.name:
+                    print(l, l2)
+                    different = True
         for s in gfa1.edges:
             s2 = gfa2.edges[gfa2.edges.index(s)]
             if s2 is None:

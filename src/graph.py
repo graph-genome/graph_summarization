@@ -156,16 +156,25 @@ class Graph:
     def save_as_xg(self):
         raise NotImplementedError()
 
+class PathIndex(NamedTuple):
+    node: Node
+    orient: str
 
 class Path:
     """TODO: Paths have not been implemented yet."""
-    def __init__(self, name: str, nodes: List[Node]):
+    def __init__(self, name: str, nodes: List[PathIndex]):
         self.name = name
         self.nodes = nodes
 
-# class PathIndex(NamedTuple):
-#     node: Node
-#     index: int
+    def __getitem__(self, i):
+        return self.nodes[i]
+
+    def __repr__(self):
+        """Warning: the representation strings are very sensitive to whitespace"""
+        return self.nodes.__repr__()
+
+    def to_gfa(self):
+        return '\t'.join(['P', self.name, "+,".join([x.node.name + x.orient for x in self.nodes])+"+", ",".join(['*' for x in self.nodes])])
 
 if __name__ == "__main__":
     location_of_xg = sys.argv[0]
