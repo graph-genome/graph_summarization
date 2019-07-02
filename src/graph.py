@@ -107,10 +107,33 @@ class Slice:
     version = 1.0
 
 
+class NodeIndex(NamedTuple):
+    node: Node
+    strand: str
+
+class Path:
+    """TODO: Paths have not been implemented yet."""
+    def __init__(self, name: str, nodes: List[NodeIndex]):
+        self.name = name
+        self.nodes = nodes
+        self.position_checkpoints = {}
+
+    def __getitem__(self, i):
+        return self.nodes[i]
+
+    def __repr__(self):
+        """Warning: the representation strings are very sensitive to whitespace"""
+        return self.nodes.__repr__()
+
+    def to_gfa(self):
+        return '\t'.join(['P', self.name, "+,".join([x.node.name + x.strand for x in self.nodes])+"+", ",".join(['*' for x in self.nodes])])
+
+
 class Graph:
-    def __init__(self, cmd: List):
+    def __init__(self, cmd: List, paths: List[Path] = []):
         """Factory for generating graphs from a representation"""
         self.slices = []
+        self.paths = paths
         if isinstance(cmd, str):
             cmd = eval(cmd)
         for sl in cmd:
@@ -159,26 +182,6 @@ class Graph:
     def save_as_xg(self):
         raise NotImplementedError()
 
-class NodeIndex(NamedTuple):
-    node: Node
-    strand: str
-
-class Path:
-    """TODO: Paths have not been implemented yet."""
-    def __init__(self, name: str, nodes: List[NodeIndex]):
-        self.name = name
-        self.nodes = nodes
-        self.position_checkpoints = {}
-
-    def __getitem__(self, i):
-        return self.nodes[i]
-
-    def __repr__(self):
-        """Warning: the representation strings are very sensitive to whitespace"""
-        return self.nodes.__repr__()
-
-    def to_gfa(self):
-        return '\t'.join(['P', self.name, "+,".join([x.node.name + x.strand for x in self.nodes])+"+", ",".join(['*' for x in self.nodes])])
 
 if __name__ == "__main__":
     location_of_xg = sys.argv[0]

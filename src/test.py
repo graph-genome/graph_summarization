@@ -121,7 +121,7 @@ class GFATest(unittest.TestCase):
                 if l.line.from_segment.name != l2.line.from_segment.name:
                     print(l, l2)
                     different = True
-                if l.line.to_segment.name != l.line.to_segment.name:
+                if l.line.to_segment.name != l2.line.to_segment.name:
                     print(l, l2)
                     different = True
         for s in gfa1.edges:
