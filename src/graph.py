@@ -36,6 +36,9 @@ class Node:
     def __hash__(self):
         return hash(self.seq)
 
+    def to_gfa(self):
+        return
+
     # Typing is picky about order of declaration, but strings bypass this PEP484
     def merge_minor(self, minor_allele: 'Node') -> 'Node':
         m = Node(self.seq, self.paths.union(minor_allele.paths))
@@ -54,6 +57,9 @@ class Node:
 class Slice:
     def __init__(self, nodes: Iterable[Node]):
         self.nodes = set(nodes)
+
+    def add_node(self, node: Node):
+        self.nodes.add(node)
 
     def alternatives(self, main):
         return self.nodes.difference({main})
@@ -123,6 +129,12 @@ class Graph:
 
                 self.slices.append(Slice(current_slice))
 
+    @classmethod
+    def load_from_slices(cls, slices):
+        graph = cls([])
+        graph.slices = slices
+        return graph
+
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
         return self.slices.__repr__()
@@ -147,17 +159,26 @@ class Graph:
     def save_as_xg(self):
         raise NotImplementedError()
 
-
+class NodeIndex(NamedTuple):
+    node: Node
+    strand: str
 
 class Path:
     """TODO: Paths have not been implemented yet."""
-    def __init__(self, name: str, nodes: List[Node]):
+    def __init__(self, name: str, nodes: List[NodeIndex]):
         self.name = name
         self.nodes = nodes
+        self.position_checkpoints = {}
 
-# class PathIndex(NamedTuple):
-#     node: Node
-#     index: int
+    def __getitem__(self, i):
+        return self.nodes[i]
+
+    def __repr__(self):
+        """Warning: the representation strings are very sensitive to whitespace"""
+        return self.nodes.__repr__()
+
+    def to_gfa(self):
+        return '\t'.join(['P', self.name, "+,".join([x.node.name + x.strand for x in self.nodes])+"+", ",".join(['*' for x in self.nodes])])
 
 if __name__ == "__main__":
     location_of_xg = sys.argv[0]
