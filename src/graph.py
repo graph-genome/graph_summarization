@@ -2,6 +2,8 @@ from typing import Callable, Iterator, Union, Optional, List, Iterable, NamedTup
 from itertools import zip_longest
 import pickle
 import sys
+#from src.gfa import GFA
+
 
 class NoAnchorError(ValueError):
     pass
@@ -12,8 +14,12 @@ class NoOverlapError(PathOverlapError):
 class NodeMissingError(ValueError):
     pass
 
+class PathIndex(NamedTuple):
+    path_id: int
+    index: int
+
 class Node:
-    def __init__(self, seq: str, paths: Iterable[int]):
+    def __init__(self, seq: str, paths: Iterable[PathIndex]):
         assert isinstance(seq, str), seq
         assert not isinstance(paths, str) and isinstance(paths, Iterable), paths
         self.seq = seq
@@ -36,8 +42,8 @@ class Node:
     def __hash__(self):
         return hash(self.seq)
 
-    def to_gfa(self):
-        return
+    def to_gfa(self, segment_id: int):
+        return '\t'.join(['S', str(segment_id), self.seq])
 
     # Typing is picky about order of declaration, but strings bypass this PEP484
     def merge_minor(self, minor_allele: 'Node') -> 'Node':
@@ -174,13 +180,15 @@ class Graph:
         self = pickle.load(file)
 
     def load_form_xg(self, file: str, xg_bin: str):
-        raise NotImplementedError()
+        gfa = GFA.load_form_xg(file, xg_bin)
+        self = gfa.to_graph()
 
     def save_as_pickle(self, file):
         pickle.dump(self, file)
 
-    def save_as_xg(self):
-        raise NotImplementedError()
+    def save_as_xg(self, file: str, xg_bin: str):
+        gfa = GFA.from_graph(self)
+        gfa.save_as_xg(file, xg_bin)
 
 
 if __name__ == "__main__":

@@ -83,6 +83,15 @@ class GFATest(unittest.TestCase):
         graph = gfa.to_graph
         self.assertIsNotNone(graph)
 
+    def test_load_gfa_to_graph_cyclic(self):
+        gfa = GFA.load_from_gfa("../test/cyclic.gfa")
+        graph = gfa.to_graph
+        print(graph)
+        new_gfa = GFA.from_graph(graph)
+#        self.assertFalse(self.is_different(gfa.gfa, new_gfa.gfa))
+        self.assertEqual(graph, [['AAAAA', {x, y}], ['GATTACA', {x, y}], ['CATTAG', {x, y}], ['CCCCC', {x, y}]])
+        self.assertEqual(graph.hyperlinks, {"x": [[3, 2]]})
+
     def test_load_gfa_via_xg(self):
         location_of_xg = "../test/xg"
         graph = GFA.load_from_gfa("../test/test.gfa")
