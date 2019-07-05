@@ -7,6 +7,7 @@ import subprocess
 import io
 from IPython import embed
 import os
+import networkx as nx
 import tempfile
 from src.graph import *
 from src.sort import *
@@ -80,7 +81,7 @@ class GFA:
 
     @property
     def to_graph(self):
-        topological_sort_helper = TopologicalSort()
+        digraph = nx.DiGraph()
         path_dict = defaultdict(list)
         node_hash = {}
 
@@ -88,10 +89,11 @@ class GFA:
         for path in self.gfa.paths:
             for node in path.segment_names:
                 path_dict[node.name + node.orient].append(path.name)
-            for node_pair in pairwise(path.segment_names):
-                topological_sort_helper.add_edge(
-                    node_pair[0].name + node_pair[0].orient,
-                    node_pair[1].name + node_pair[1].orient)
+            nx.add_path(digraph, [node.name + node.orient for node in path.segment_names])
+            # for node_pair in pairwise(path.segment_names):
+            #     topological_sort_helper.add_edge(
+            #         node_pair[0].name + node_pair[0].orient,
+            #         node_pair[1].name + node_pair[1].orient)
 
         # Extract all nodes in the graph.
         for segment in self.gfa.segments:
@@ -103,7 +105,10 @@ class GFA:
             node = Node(segment.sequence, path_dict[node_id])
             node_hash[node_id] = node
 
-        node_stack = topological_sort_helper.topologicalSort()
+        dag = DAGify(digraph)
+        dag.remove_feedback_arc()
+#        node_stack = topological_sort_helper.topologicalSort()
+        node_stack = list(nx.topological_sort(dag.graph))
 
         # Cluster nodes as multiple slices according to the result of the topological sort.
         factory_input = []

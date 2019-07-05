@@ -19,32 +19,32 @@ class DAGify:
             out_degrees = list(graph.out_degree(graph.nodes()))
             in_degrees = list(graph.in_degree(graph.nodes()))
 
-            for out_edge in out_degrees:
-                if out_edge[1] == 0:
-                    sinks.append(out_edge[0])
-                    graph.remove_node(out_edge[0])
-                    out_degrees.remove(out_edge)
-                    for in_edge in in_degrees:
-                        if in_edge[0] == out_edge[0]:
-                            in_degrees.remove(in_edge)
+            for out_degree in out_degrees:
+                if out_degree[1] == 0:
+                    sinks.append(out_degree[0])
+                    graph.remove_node(out_degree[0])
+                    out_degrees.remove(out_degree)
+                    for in_degree in in_degrees:
+                        if in_degree[0] == out_degree[0]:
+                            in_degrees.remove(in_degree)
 
-            for in_edge in in_degrees:
-                if in_edge[1] == 0:
-                    sources.append(in_edge[0])
-                    graph.remove_node(in_edge[0])
-                    in_degrees.remove(in_edge)
-                    for out_edge in out_degrees:
-                        if out_edge[0] == in_edge[0]:
-                            out_degrees.remove(out_edge)
+            for in_degree in in_degrees:
+                if in_degree[1] == 0:
+                    sources.append(in_degree[0])
+                    graph.remove_node(in_degree[0])
+                    in_degrees.remove(in_degree)
+                    for out_degree in out_degrees:
+                        if out_degree[0] == in_degree[0]:
+                            out_degrees.remove(out_degree)
 
             delta_max = 0
             delete_index = -1
 
-            for out_edge in out_degree:
-                for in_edge in in_degree:
-                    if out_edge[0] == in_edge[0]:
-                        a = out_edge[0]
-                        b = (out_edge[1] - in_edge[1])
+            for out_degree in out_degrees:
+                for in_degree in in_degrees:
+                    if out_degree[0] == in_degree[0]:
+                        a = out_degree[0]
+                        b = (out_degree[1] - in_degree[1])
                         if b >= delta_max:
                             delta_max = b
                             delete_index = b
