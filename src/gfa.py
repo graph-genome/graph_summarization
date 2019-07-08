@@ -117,7 +117,7 @@ class GFA:
                     path_list[path].append(segment_id)
         for path_key in path_list:
             path_values = [str(x) for x in path_list[path_key]]
-            gfa.add_line('\t'.join(['P', path_key, "+,".join(path_values)+"+", ",".join(['*' for x in path_values])]))
+            gfa.add_line('\t'.join(['P', path_key, "+,".join(path_values)+"+", ",".join(['*' for _ in path_values])]))
         return cls(gfa)
 
     @property
@@ -128,7 +128,6 @@ class GFA:
 
         # Extract all paths into graph
         for path in self.gfa.paths:
-            ### TODO: Replace it as a path class object.
             for node in path.segment_names:
                 path_dict[node.name + node.orient].append(path.name)
             for node_pair in pairwise(path.segment_names):
