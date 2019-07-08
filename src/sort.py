@@ -3,13 +3,13 @@ import networkx as nx
 
 
 class DAGify:
-    def __init__(self, graph: nx.MultiDiGraph):
+    def __init__(self, graph: nx.DiGraph):
         self.graph = graph
 
     def remove_feedback_arc(self):
         """
 
-        :return: nothing
+        :return: remove edge list
         """
         graph = self.graph.copy()
         sources = []
@@ -18,6 +18,8 @@ class DAGify:
         while graph.nodes:
             out_degrees = list(graph.out_degree(graph.nodes()))
             in_degrees = list(graph.in_degree(graph.nodes()))
+
+            # print(out_degrees, in_degrees)
 
             for out_degree in out_degrees:
                 if out_degree[1] == 0:
@@ -28,6 +30,8 @@ class DAGify:
                         if in_degree[0] == out_degree[0]:
                             in_degrees.remove(in_degree)
 
+            # print("b", out_degrees, in_degrees)
+
             for in_degree in in_degrees:
                 if in_degree[1] == 0:
                     sources.append(in_degree[0])
@@ -36,6 +40,10 @@ class DAGify:
                     for out_degree in out_degrees:
                         if out_degree[0] == in_degree[0]:
                             out_degrees.remove(out_degree)
+
+
+            # print("c", out_degrees, in_degrees)
+
 
             delta_max = 0
             delete_index = -1
@@ -47,7 +55,7 @@ class DAGify:
                         b = (out_degree[1] - in_degree[1])
                         if b >= delta_max:
                             delta_max = b
-                            delete_index = b
+                            delete_index = a
 
             for node in graph.nodes:
                 if graph.out_degree(node) - graph.in_degree(node) > delta_max:
@@ -58,8 +66,10 @@ class DAGify:
                 sources.append(delete_index)
                 graph.remove_node(delete_index)
 
+        # print(sinks, sources)
         sinks.reverse()
         sources.extend(sinks)
+        # print(sources)
 
         remove_list = []
 
@@ -68,10 +78,12 @@ class DAGify:
             sink = edge[1]
             if sources.index(source) >= sources.index(sink):
                 remove_list.append(edge)
+        #print(self.graph.edges())
+        #print(remove_list)
 
-        self.graph.remove(remove_list)
+        self.graph.remove_edges_from(remove_list)
 
-
+        return remove_list
 
 
 class TopologicalSort:

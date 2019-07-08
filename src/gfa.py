@@ -89,11 +89,11 @@ class GFA:
         for path in self.gfa.paths:
             for node in path.segment_names:
                 path_dict[node.name + node.orient].append(path.name)
-            nx.add_path(digraph, [node.name + node.orient for node in path.segment_names])
-            # for node_pair in pairwise(path.segment_names):
-            #     topological_sort_helper.add_edge(
-            #         node_pair[0].name + node_pair[0].orient,
-            #         node_pair[1].name + node_pair[1].orient)
+            # nx.add_path(digraph, [node.name + node.orient for node in path.segment_names])
+            for node_pair in pairwise(path.segment_names):
+                digraph.add_edge(
+                    node_pair[0].name + node_pair[0].orient,
+                    node_pair[1].name + node_pair[1].orient)
 
         # Extract all nodes in the graph.
         for segment in self.gfa.segments:
@@ -106,7 +106,7 @@ class GFA:
             node_hash[node_id] = node
 
         dag = DAGify(digraph)
-        dag.remove_feedback_arc()
+        hyperlinks = dag.remove_feedback_arc()
 #        node_stack = topological_sort_helper.topologicalSort()
         node_stack = list(nx.topological_sort(dag.graph))
 
