@@ -32,7 +32,7 @@ class Node:
     def __repr__(self):
         """Paths representation is sorted because set ordering is not guaranteed."""
         return repr(self.seq) + \
-        ', {' + ', '.join(str(i) for i in sorted(list(self.paths))) + '}'
+        ', {' + ', '.join(str(i) for i in list(self.paths)) + '}'
 
     def __eq__(self, other):
         if not isinstance(other, Node):
