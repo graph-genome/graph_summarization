@@ -1,7 +1,10 @@
-from typing import Callable, Iterator, Union, Optional, List, Iterable, NamedTuple
+from typing import List, Iterable
 from itertools import zip_longest
 import pickle
 import sys
+
+from src.utils import keydefaultdict
+
 
 class NoAnchorError(ValueError):
     pass
@@ -27,7 +30,7 @@ class Node:
     def __repr__(self):
         """Paths representation is sorted because set ordering is not guaranteed."""
         return repr(self.seq) + \
-        ', {' + ', '.join(str(i) for i in list(self.paths)) + '}'
+        ', {' + ', '.join(str(i) for i in sorted(list(self.paths))) + '}'
 
     def __eq__(self, other):
         if not isinstance(other, Node):
@@ -40,8 +43,7 @@ class Node:
 
     def append_path(self, path):
         assert isinstance(path, Path), path
-        pt = PathIndex(path, len(path.nodes))  # not parallelizable
-        self.paths.add(pt)
+        self.paths.add(PathIndex(path, len(path.nodes)))  # not parallelizable
         path.nodes.append(NodeIndex(self, len(self.paths)))
 
     def to_gfa(self, segment_id: int):
@@ -129,17 +131,39 @@ class Path:
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
-        return self.nodes.__repr__()
+        return "'" + self.accession + "'"
+
+    def __eq__(self, other):
+        return self.accession == other.accession
+
+    def __hash__(self):
+        return hash(self.accession)
 
     def to_gfa(self):
         return '\t'.join(['P', self.accession, "+,".join([x.node.name + x.strand for x in self.nodes]) + "+", ",".join(['*' for x in self.nodes])])
 
 
-class PathIndex(NamedTuple):
+class PathIndex:
     """Link from a Node to the place in the path where the Node is referenced.  A Node can appear
     in a Path multiple times.  Index indicates which instance it is."""
-    path: Path
-    index: int
+    def __init__(self, path: Path, index: int):
+        self.path = path
+        self.index = index
+
+    def __repr__(self):
+        return repr(self.path.accession)
+
+    def __eq__(self, other):
+        if self.path.accession == other.path.accession and self.index == other.index:
+            return True
+        else:
+            return False
+
+    def __lt__(self, other):
+        return self.path.accession < other.path.accession
+
+    def __hash__(self):
+        return hash(self.path.accession) * (self.index if self.index else 1)
 
 
 class NodeIndex:
@@ -149,16 +173,25 @@ class NodeIndex:
         self.index = index
         self.strand = strand  # TODO: make this required
 
+    def __repr__(self):
+        return self.node.seq
+
 
 class Graph:
-    def __init__(self, paths: List[Path] = None):
+    def __init__(self, paths: List = None):
         """Factory for generating graphs from a representation"""
         self.slices = []
-        self.paths = paths if paths else []  # can't be in the signature
+        if all(isinstance(x, str) for x in paths):
+            self.paths = [Path(x) for x in paths]
+        elif all(isinstance(x, Path) for x in paths):
+            self.paths = paths
+        else:
+            self.paths = []
         #TODO: calculate slices?
 
     @staticmethod
     def build(cmd):
+        path_dict = keydefaultdict(lambda key: Path(key))  # construct blank path if new
         slices = []
         if isinstance(cmd, str):
             cmd = eval(cmd)
@@ -172,7 +205,8 @@ class Graph:
                 else:
                     try:
                         for i in range(0, len(sl), 2):
-                            current_slice.append(Node(sl[i], sl[i + 1]))
+                            paths = [path_dict[key] for key in sl[i + 1]]
+                            current_slice.append(Node(sl[i], paths))
                     except IndexError:
                         raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
 

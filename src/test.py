@@ -11,8 +11,12 @@ def G(rep):
     return Graph.build(rep)[0]
 
 
+a, b, c, d, e = 'a', 'b', 'c', 'd', 'e'  # Paths must be created first
 class GraphTest(unittest.TestCase):
-    a, b, c, d, e = Path('a'), Path('b'), Path('c'), Path('d'), Path('e')  # Paths must be created first
+    """Constructing a node with an existing Path object will modify that Path object (doubly linked)
+    which means care must be taken when constructing Graphs.  From factory_input we have an example of
+    pure python to Graph.build in one step.  In example_graph, we must first declare the Paths,
+    then reference them in order in Node Constructors.  Order matters for Graph identity!"""
     # Path e is sometimes introduced as a tie breaker for Slice.secondary()
     factory_input = [['ACGT', {a, b, c, d}],
                      ['C', {a, b, d}, 'T', {c}],  # SNP
@@ -28,7 +32,8 @@ class GraphTest(unittest.TestCase):
                      ['TATA', {a, b, c, d}]]  # [11] anchor
 
     def example_graph(self):
-        a, b, c, d, e = Path('a'), Path('b'), Path('c'), Path('d'), Path('e')  # Paths must be created first
+        # IMPORTANT: Never reuse Paths: Paths must be created fresh for each graph
+        a, b, c, d, e = Path('a'), Path('b'), Path('c'), Path('d'), Path('e')
         factory_input = [Slice([Node('ACGT', {a,b,c,d})]),
                        Slice([Node('C',{a,b,d}),Node('T', {c})]),
                        Slice([Node('GGA',{a,b,c,d})]),
@@ -46,10 +51,19 @@ class GraphTest(unittest.TestCase):
         base_graph = Graph.load_from_slices(factory_input)
         return base_graph
 
+    def test_equalities(self):
+        self.assertEqual(Node('A', {}),Node('A', {}))
+        self.assertEqual(Node('A', {Path('x')}),Node('A', {Path('x')}))
+        self.assertEqual(Node('A', {Path('x'),Path('y')}),Node('A', {Path('x'),Path('y')}))
+        self.assertEqual(Slice([Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')})]),
+                         Slice([Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')})]))
+        self.assertEqual(Graph.build([['ACGT', {a, b, c, d}]]), Graph.build([['ACGT', {a, b, c, d}]]))
+
     def test_graph_factory(self):
         base_graph = self.example_graph()
-        assert base_graph == Graph.build(self.factory_input), \
-            ('\n' + repr(base_graph) + '\n' + str(self.factory_input))
+        g1, g2 = Graph.build(self.factory_input), Graph.build(self.factory_input)
+        assert g1 == g2, \
+            ('\n' + repr(g1) + '\n' + repr(g2))
         g_double = Graph.build(eval(str(base_graph)))
         # WARN: Never compare two string literals: could be order sensitive, one object must be Graph
         #str(g_double) == str(base_graph)
