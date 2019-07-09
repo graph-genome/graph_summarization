@@ -6,6 +6,7 @@ import dataclasses
 class Profile:
     node: NodeIndex
     paths: List[Path]
+    candidate_paths: List[Path]
     duplicate: int = 0
 
 
@@ -25,7 +26,7 @@ class DAGify:
     def recursive_merge(self, primary_path_index: int = 0):
         profile = []
         for node_index in self.paths[primary_path_index].nodes:
-            profile.append(Profile(node_index, [self.paths[primary_path_index]], 0))
+            profile.append(Profile(node_index, [self.paths[primary_path_index]], [self.paths[primary_path_index]], 0))
         for i, path in enumerate(self.paths):
             if i == primary_path_index:
                 continue
@@ -50,6 +51,8 @@ class DAGify:
             if s1[i-1].node == s2.nodes[j-1]:
                 prev_paths = s1[i-1].paths
                 prev_paths.append(s2)
+                candidate_paths = s1[i-1].candidate_paths
+
                 index.append(Profile(s1[i-1].node, prev_paths, s1[i-1].node.node.index in prev))
                 prev.add(s1[i-1].node.node.index)
                 i -= 1
