@@ -1,6 +1,7 @@
 import unittest
 from src.gfa import GFA
 from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError
+from src.sort import DAGify
 
 def G(rep):
     """Short hand for Graph construction that returns a slice"""
@@ -54,6 +55,24 @@ class GraphTest(unittest.TestCase):
     def test_G(self):
         with self.assertRaises(ValueError):
             G([['C', {1, 2, 3, 4}], ['T', {12, 16}]])
+
+
+class DAGifyTest(unittest.TestCase):
+    """ test class of gfa.py
+    """
+
+    def test_dagify(self):
+        gfa = GFA.load_from_gfa("../test/test.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        dagify.recursive_merge(0)
+        graph = dagify.to_graph()
+
+        graph_by_toplogical_sort = gfa.to_graph
+        x = 'x'
+        y = 'y'
+        z = 'z'
+        self.assertEqual(graph, graph_by_toplogical_sort)
 
 
 class GFATest(unittest.TestCase):

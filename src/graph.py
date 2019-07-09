@@ -13,11 +13,12 @@ class NodeMissingError(ValueError):
     pass
 
 class Node:
-    def __init__(self, seq: str, paths: Iterable[int]):
+    def __init__(self, seq: str, paths: Iterable[int], index: int = 0):
         assert isinstance(seq, str), seq
         assert not isinstance(paths, str) and isinstance(paths, Iterable), paths
         self.seq = seq
         self.paths = set(paths)
+        self.index = index
 
     def __len__(self):
         return len(self.paths)
@@ -118,12 +119,10 @@ class Path:
         self.nodes = nodes
         self.position_checkpoints = {}
 
-    def __getitem__(self, i):
-        return self.nodes[i]
-
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
-        return self.nodes.__repr__()
+        #return self.nodes.__repr__()
+        return self.name
 
     def to_gfa(self):
         return '\t'.join(['P', self.name, "+,".join([x.node.name + x.strand for x in self.nodes])+"+", ",".join(['*' for x in self.nodes])])

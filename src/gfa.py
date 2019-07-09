@@ -121,6 +121,28 @@ class GFA:
         return cls(gfa)
 
     @property
+    def to_paths(self) -> List[Path]:
+        node_hash = {}
+        for segment in self.gfa.segments:
+            node_id = segment.name + "+"
+            node = Node(segment.sequence, [])
+            node_hash[node_id] = node
+
+            node_id = segment.name + "-"
+            node = Node(segment.sequence, [])
+            node_hash[node_id] = node
+
+        paths = []
+        for path in self.gfa.paths:
+            nodes = []
+            for node in path.segment_names:
+                node_index = NodeIndex(Node(node_hash[node.name + node.orient].seq, [], node.name), node.orient)
+                nodes.append(node_index)
+            paths.append(Path(path.name, nodes))
+
+        return paths
+
+    @property
     def to_graph(self):
         topological_sort_helper = TopologicalSort()
         path_dict = defaultdict(list)
