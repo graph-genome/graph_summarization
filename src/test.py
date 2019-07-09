@@ -74,6 +74,18 @@ class DAGifyTest(unittest.TestCase):
         z = 'z'
         self.assertEqual(graph, graph_by_toplogical_sort)
 
+    def test_dagify2(self):
+        gfa = GFA.load_from_gfa("../test/test2.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        dagify.recursive_merge(0)
+        graph = dagify.to_graph()
+
+        graph_by_toplogical_sort = gfa.to_graph
+        x = 'x'
+        y = 'y'
+        z = 'z'
+        self.assertEqual(graph, graph_by_toplogical_sort)
 
 class GFATest(unittest.TestCase):
     """ test class of gfa.py

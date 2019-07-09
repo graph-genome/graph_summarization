@@ -46,28 +46,28 @@ class DAGify:
         index = []
         prev = set()
 
-        while i > 0 or j > 0:
+        while i > 0 and j > 0:
             if s1[i-1].node == s2.nodes[j-1]:
                 prev_paths = s1[i-1].paths
                 prev_paths.append(s2)
-                index.append(Profile(s1[i-1].node, prev_paths, s1[i-1].node in prev))
-                prev.add(s1[i-1].node)
+                index.append(Profile(s1[i-1].node, prev_paths, s1[i-1].node.node.index in prev))
+                prev.add(s1[i-1].node.node.index)
                 i -= 1
                 j -= 1
             elif dp[i-1][j] > dp[i][j-1]:
                 prev_paths = s1[i-1].paths
-                index.append(Profile(s1[i-1].node, prev_paths, s1[i-1].node in prev))
-                prev.add(s1[i-1].node)
+                index.append(Profile(s1[i-1].node, prev_paths, s1[i-1].node.node.index in prev))
+                prev.add(s1[i-1].node.node.index)
                 i -= 1
             else:
                 index.append(Profile(s2.nodes[j-1], [s2], False))
-                prev.add(s2.nodes[j-1])
+                prev.add(s2.nodes[j-1].node.index)
                 j -= 1
 
         while i > 0:
             prev_paths = s1[i - 1].paths
-            index.append(Profile(s1[i - 1].node, prev_paths, s1[i - 1].node in prev))
-            prev.add(s1[i - 1].node)
+            index.append(Profile(s1[i - 1].node, prev_paths, s1[i - 1].node.node.index in prev))
+            prev.add(s1[i - 1].node.node.index)
             i -= 1
 
         while j > 0:
@@ -83,6 +83,7 @@ class DAGify:
     def to_graph(self):
         factory_input = []
         current_slice = Slice([])
+        print(self.profile)
         for prof in self.profile:
             paths = [x.name for x in prof.paths]
             if len(prof.paths) == len(self.paths):
