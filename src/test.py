@@ -31,18 +31,23 @@ class GraphTest(unittest.TestCase):
                        Slice([Node('TTG',{1,2,3,4})]),
                        Slice([Node('A', {1, 2}), Node('C', {4, 5}), Node('T', {3})]),  # third allele
                        Slice([Node('GG', {1, 2}), Node('TT', {3, 4})]),  # equal size nodes
+                       Slice([Node('C', {1, 2, 3, 5}), Node('T', {4})]),
+                       Slice([Node('C', {1, 2, 5}), Node('T', {3, 4})]),
+                       Slice([Node('C', {1, 2, 3}), Node('T', {4})]),
                        Slice([Node('TATA', {1, 2, 3, 4})])  # anchor
                           ]
 
         base_graph = Graph.load_from_slices(factory_input)
         return base_graph
+
     def test_graph_factory(self):
         base_graph = self.example_graph()
-        assert base_graph == str(self.factory_input), \
+        assert base_graph == Graph(self.factory_input), \
             ('\n' + repr(base_graph) + '\n' + str(self.factory_input))
         g_double = Graph(eval(str(base_graph)))
-        #str(g_double) == str(base_graph)  # WARN: could be order sensitive, don't worry if it fails
-        assert g_double == base_graph
+        # WARN: Never compare two string literals: could be order sensitive, one object must be Graph
+        #str(g_double) == str(base_graph)
+        assert g_double == base_graph, repr(g_double) + '\n' + repr(base_graph)
         assert g_double == self.factory_input
         assert g_double == str(self.factory_input)
 
