@@ -71,7 +71,7 @@ class GFA:
     #        return graph
 
     @classmethod
-    def load_form_xg(cls, file: str, xg_bin: str):
+    def load_from_xg(cls, file: str, xg_bin: str):
         gfa = gfapy.Gfa()
         process = subprocess.Popen([xg_bin, "-i", file, "--gfa-out"], stdout=subprocess.PIPE)
         with io.open(process.stdout.fileno(), closefd=False) as stream:
