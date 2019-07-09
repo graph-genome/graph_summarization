@@ -184,9 +184,5 @@ class Graph:
 
 
 if __name__ == "__main__":
-    location_of_xg = sys.argv[0]
-
-    ### Usage
-    graph = Graph.load_form_xg
-    graph.save_as_pickle()
-
+    graph = Graph.load_from_pickle(sys.argv[0])
+    print(graph)

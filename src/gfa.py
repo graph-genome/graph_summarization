@@ -188,4 +188,5 @@ class GraphStack:
 '''
 
 if __name__ == "__main__":
-    location_of_xg = sys.argv[0]
+    graph = GFA.load_from_gfa(sys.argv[0])
+    print(graph)
