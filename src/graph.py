@@ -108,11 +108,16 @@ class Slice:
 
 
 class NodeIndex(NamedTuple):
+    """
+    NodeIndex is a named tuple for storing node (identifier) and its strand on the path.
+    """
     node: Node
     strand: str
 
 class Path:
-    """TODO: Paths have not been implemented yet."""
+    """
+    Path stores a name of the path, an ordered set of nodes, and position checkpoints as indices for nucleotide position.
+    """
     def __init__(self, name: str, nodes: List[NodeIndex]):
         self.name = name
         self.nodes = nodes
