@@ -20,7 +20,7 @@ class Node:
     def __init__(self, seq: str, paths: 'Iterable[Path]'):
         assert isinstance(seq, str), seq
         self.seq = seq
-        self.paths = set()
+        self.paths = set()  # Set[PathIndex]
         for p in paths:
             self.append_path(p)
 
@@ -42,9 +42,10 @@ class Node:
         return hash(self.seq)
 
     def append_path(self, path):
+        """Instead: Use Path.append_node if possible"""
         assert isinstance(path, Path), path
         self.paths.add(PathIndex(path, len(path.nodes)))  # not parallelizable
-        path.nodes.append(NodeIndex(self, len(self.paths)))
+        path.nodes.append(NodeTraversal(self))
 
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
@@ -123,7 +124,7 @@ class Path:
     them to Nodes to link together."""
     def __init__(self, accession: str):
         self.accession = accession  # one path per accessions
-        self.nodes = [] # List[NodeIndex]
+        self.nodes = [] # List[NodeTraversal]
         self.position_checkpoints = {}  # TODO: currently not used
 
     def __getitem__(self, path_index):
@@ -138,6 +139,13 @@ class Path:
 
     def __hash__(self):
         return hash(self.accession)
+
+    def append_node(self, node: Node, strand: str):
+        """This is the preferred way to build a graph in a truly non-linear way.
+        NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node (order independent)."""
+        self.nodes.append(NodeTraversal(node, strand))
+        node.paths.add(PathIndex(self, len(self.nodes)-1))  # already appended node
+        return node
 
     def to_gfa(self):
         return '\t'.join(['P', self.accession, "+,".join([x.node.name + x.strand for x in self.nodes]) + "+", ",".join(['*' for x in self.nodes])])
@@ -166,11 +174,10 @@ class PathIndex:
         return hash(self.path.accession) * (self.index if self.index else 1)
 
 
-class NodeIndex:
+class NodeTraversal:
     """Link from a Path to a Node it is currently traversing.  Includes strand"""
-    def __init__(self, node: Node, index: int, strand: str = '+'):
+    def __init__(self, node: Node, strand: str = '+'):
         self.node = node
-        self.index = index
         self.strand = strand  # TODO: make this required
 
     def __repr__(self):
@@ -181,16 +188,21 @@ class Graph:
     def __init__(self, paths: List = None):
         """Factory for generating graphs from a representation"""
         self.slices = []
+        # This can create orphan Nodes with no traversals
+        self.nodes = keydefaultdict(lambda key: Node(key, []))  # node id = Node object
         if all(isinstance(x, str) for x in paths):
-            self.paths = [Path(x) for x in paths]
+            self.paths = {x: Path(x) for x in paths}
         elif all(isinstance(x, Path) for x in paths):
-            self.paths = paths
+            self.paths = {path.name: path for path in paths}
         else:
-            self.paths = []
+            self.paths = {}
         #TODO: calculate slices?
 
     @staticmethod
     def build(cmd):
+        """This factory uses existing slice declarations to build a graph with Paths populated in the order
+        that they are mentioned in the slices.  Currently, this is + only and does not support non-linear
+        orderings.  Use Path.append_node() to build non-linear graphs."""
         path_dict = keydefaultdict(lambda key: Path(key))  # construct blank path if new
         slices = []
         if isinstance(cmd, str):
@@ -246,6 +258,18 @@ class Graph:
         from src.gfa import GFA
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
+
+    def append_node_to_path(self, name, strand, path_name):
+        """This is the preferred way to build a graph in a truly non-linear way.
+        Nodes will be created if necessary.
+        NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
+        (order independent)."""
+        if name not in self.nodes:  # hasn't been created yet, need to retrieve from dictionary of guid
+            if isinstance(name, str):
+                self.nodes[name] = Node(name, [])
+            else:
+                raise ValueError("Provide the id of the node, not", name)
+        self.paths[path_name].append_node(self.nodes[name], strand)
 
 
 if __name__ == "__main__":

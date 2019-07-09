@@ -122,6 +122,17 @@ class GFA:
 
     @property
     def to_graph(self):
+        # Extract all paths into graph
+        path_names = [p.name for p in self.gfa.paths]
+        graph = Graph(path_names)  # Paths can be empty at start
+        for path in self.gfa.paths:
+            for node in path.segment_names:
+                graph.append_node_to_path(node.name, node.orient, path.name)
+        for segment in self.gfa.segments:
+            graph.nodes[segment.name].seq = segment.sequence
+        return graph
+        # IMPORTANT: It's not clear to Josiah how much of the below is necessary, so it's being left unmodified.
+
         topological_sort_helper = TopologicalSort()
         path_dict = defaultdict(list)
         node_hash = {}
