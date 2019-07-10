@@ -9,31 +9,32 @@ class Profile:
     candidate_paths: set()
     duplicate: bool = False
 
+    def __repr__(self):
+        return "["+str(self.node.node) + str(self.paths)+"]"
 
 class DAGify:
-    def __init__(self, paths: List[Path], nodes = {}):
+    def __init__(self, paths: List[Path], nodes={}):
         """
 
         :type paths: List[Path]
         """
         self.paths = paths
         self.nodes = nodes
-        self.profile = []
 
     def search_for_minimizing_replications(self) -> (List[Profile], int):
-        min_rep = len(self.nodes)
+        min_rep = sys.maxsize
         profile = []
         for i, _ in enumerate(self.paths):
             profile_candidate = self.recursive_merge(i)
-            if min_rep > sum([x for x in profile if x]):
-                min_rep = sum([x for x in profile if x])
+            if min_rep > len([x.duplicate for x in profile_candidate if x.duplicate]):
+                min_rep = len([x.duplicate for x in profile_candidate if x.duplicate])
                 profile = profile_candidate
         return profile, min_rep
 
     def recursive_merge(self, primary_path_index: int = 0) -> List[Profile]:
         profile = []
         for node_index in self.paths[primary_path_index].nodes:
-            profile.append(Profile(node_index, [self.paths[primary_path_index]], {self.paths[primary_path_index].name}, 0))
+            profile.append(Profile(node_index, [self.paths[primary_path_index]], {self.paths[primary_path_index].name}, False))
         for i, path in enumerate(self.paths):
             if i == primary_path_index:
                 continue
@@ -81,7 +82,7 @@ class DAGify:
                     candidate_paths |= s1[i].candidate_paths
                 if s1[i-1]:
                     candidate_paths |= s1[i-1].candidate_paths
-                index.append(Profile(s2.nodes[j-1], [s2], candidate_paths, False))
+                index.append(Profile(s2.nodes[j-1], [s2], candidate_paths, s2.nodes[j-1].node.index in prev))
                 prev.add(s2.nodes[j-1].node.index)
                 j -= 1
 
@@ -98,15 +99,14 @@ class DAGify:
             j -= 1
 
         index.reverse()
-        self.profile = index
 
         return index
 
-    def to_graph(self):
+    def to_graph(self, profile: List[Profile]):
         factory_input = []
         current_slice = Slice([])
         # print(self.profile)
-        for prof in self.profile:
+        for prof in profile:
             paths = [x.name for x in prof.paths]
             if len(prof.paths) == len(prof.candidate_paths):
                 if len(current_slice.nodes) > 0:

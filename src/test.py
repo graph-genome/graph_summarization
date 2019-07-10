@@ -56,10 +56,14 @@ class GraphTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             G([['C', {1, 2, 3, 4}], ['T', {12, 16}]])
 
-
+a = 'a'
+x = 'x'
+y = 'y'
+z = 'z'
 class DAGifyTest(unittest.TestCase):
     """ test class of sort.py
     """
+
 
     def test_dagify(self):
         gfa = GFA.load_from_gfa("../test/test.gfa")
@@ -69,31 +73,43 @@ class DAGifyTest(unittest.TestCase):
         graph = dagify.to_graph()
 
         graph_by_toplogical_sort = gfa.to_graph
-        x = 'x'
-        y = 'y'
-        z = 'z'
         self.assertEqual(graph, graph_by_toplogical_sort)
 
     def test_dagify2(self):
         gfa = GFA.load_from_gfa("../test/test2.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        dagify.recursive_merge(0)
-        graph = dagify.to_graph()
-
-        a = 'a'
-        x = 'x'
-        y = 'y'
-        z = 'z'
+        profile = dagify.recursive_merge(0)
+        graph = dagify.to_graph(profile)
         self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['G', {x}, 'A', {y, z}], ['C', {x, y}, 'T', {z}], ['TTG', {x, y, z}], ['G', {x, y}, 'A', {a, z}], ['AAATTTTCTGGAGTTCTAT', {a, x, y, z}], ['A', {a, z}, 'T', {x, y}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
 
     def test_dagify3(self):
         gfa = GFA.load_from_gfa("../test/test3.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        dagify.recursive_merge(0)
-        graph = dagify.to_graph()
-        print(graph)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(rep_count, 1)
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['CCAACTCTCTG', {y}, 'G', {x}], ['C', {x, y}], ['TTG', {x, y}], ['G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y}], ['T', {x, y}], ['ATAT', {x, y}], ['T', {x, y}], ['CCAACTCTCTG', {x, y}]])
+
+    def test_dagify_altpath(self):
+        gfa = GFA.load_from_gfa("../test/alternate_paths.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(rep_count, 1)
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['A', {x}], ['G', {x, y}], ['A', {y}], ['T', {x, y}]])
+
+    def test_dagify_dup(self):
+        gfa = GFA.load_from_gfa("../test/duplicate.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(rep_count, 2)
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['', {x}, 'A', {y}], ['G', {y}], ['A', {x, y}], ['G', {x, y}], ['T', {x, y}]])
+
 
 
 class GFATest(unittest.TestCase):
