@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/subwaystation/vgbrowser.svg?branch=master)](https://travis-ci.org/subwaystation/vgbrowser)
+
 # vgbrowser
 Browser for Graph Genomes built with VG.  Provides visualization for variation within a species of plant or animal. Designed to scale up to thousands of specimens and provide useful visualizations.
 
