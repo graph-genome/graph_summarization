@@ -2,6 +2,7 @@ from typing import List, Iterable
 from itertools import zip_longest
 import pickle
 import sys
+from uuid import uuid1
 
 from src.utils import keydefaultdict
 
@@ -17,8 +18,9 @@ class NodeMissingError(ValueError):
 
 
 class Node:
-    def __init__(self, seq: str, paths: 'Iterable[Path]'):
+    def __init__(self, seq: str, paths: 'Iterable[Path]', id: str = None):
         assert isinstance(seq, str), seq
+        self.id = id if id else str(uuid1())
         self.seq = seq
         self.paths = set()  # Set[PathIndex]
         for p in paths:
@@ -36,7 +38,7 @@ class Node:
         if not isinstance(other, Node):
             print("Warn: comparing Node and ", type(other), other)
             return False
-        return self.seq == other.seq and self.paths == other.paths
+        return self.seq == other.seq and self.paths == other.paths  # and self.id == other.id
 
     def __hash__(self):
         return hash(self.seq)
@@ -117,6 +119,7 @@ class Slice:
 
     version = 1.0
 
+
 class Path:
     """Paths represent the linear order of on particular individual (accession) as its genome
     was sequenced.  A path visits a series of nodes and the ordered concatenation of the node
@@ -187,7 +190,7 @@ class NodeTraversal:
 class Graph:
     def __init__(self, paths: List = None):
         """Factory for generating graphs from a representation"""
-        self.slices = []
+        self.slices = []  # only get populated by compute_slices()
         # This can create orphan Nodes with no traversals
         self.nodes = keydefaultdict(lambda key: Node(key, []))  # node id = Node object
         if all(isinstance(x, str) for x in paths):
@@ -259,17 +262,31 @@ class Graph:
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
 
-    def append_node_to_path(self, name, strand, path_name):
+    def append_node_to_path(self, node_id, strand, path_name):
         """This is the preferred way to build a graph in a truly non-linear way.
         Nodes will be created if necessary.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
         (order independent)."""
-        if name not in self.nodes:  # hasn't been created yet, need to retrieve from dictionary of guid
-            if isinstance(name, str):
-                self.nodes[name] = Node(name, [])
+        if node_id not in self.nodes:  # hasn't been created yet, need to retrieve from dictionary of guid
+            if isinstance(node_id, str):
+                self.nodes[node_id] = Node('', [], node_id)
             else:
-                raise ValueError("Provide the id of the node, not", name)
-        self.paths[path_name].append_node(self.nodes[name], strand)
+                raise ValueError("Provide the id of the node, not", node_id)
+        self.paths[path_name].append_node(self.nodes[node_id], strand)
+
+    def compute_slices(self):
+        """TODO: This is a mockup stand in for the real method."""
+        first_path = next(iter(self.paths.values()))
+        for node_traversal in first_path:
+            node = node_traversal.node
+            self.slices.append(Slice([node]))
+        return self
+
+
+# class SlicedGraph(Graph):
+#     def __init__(self, paths):
+#         super(SlicedGraph, self).__init__(paths)
+
 
 
 if __name__ == "__main__":

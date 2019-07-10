@@ -91,16 +91,26 @@ class GFATest(unittest.TestCase):
 #        self.assertEqual(len(graph.gfa.to_gfa1_s().split("\n")), len(graph2.gfa.to_gfa1_s().split("\n")))
 
     def test_load_gfa_to_graph(self):
-        gfa = GFA.load_from_gfa("../test/test.gfa")
-        graph = gfa.to_graph
+        graph, gfa = self.make_graph_from_gfa()
+        self.assertEqual(len(graph.paths), 3)
+        self.assertEqual(len(graph.nodes), 15)
+
+    def test_gfa_to_sliced_graph(self):
+        graph, gfa = self.make_graph_from_gfa()
+        slices = graph.compute_slices()
         x = 'x'
         y = 'y'
         z = 'z'
-        self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
+        print(slices)
+        self.assertEqual(slices, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
 
-    def test_export_as_gfa(self):
+    def make_graph_from_gfa(self):
         gfa = GFA.load_from_gfa("../test/test.gfa")
         graph = gfa.to_graph
+        return graph, gfa
+
+    def test_export_as_gfa(self):
+        graph, gfa = self.make_graph_from_gfa()
         new_gfa = GFA.from_graph(graph)
         self.assertFalse(self.is_different(gfa.gfa, new_gfa.gfa))
 
