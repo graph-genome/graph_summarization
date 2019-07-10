@@ -38,3 +38,6 @@ test/xg
 
 __pycache__
 desktop.ini
+
+# PyCharm
+.idea
