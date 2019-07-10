@@ -58,7 +58,7 @@ class GraphTest(unittest.TestCase):
 
 
 class DAGifyTest(unittest.TestCase):
-    """ test class of gfa.py
+    """ test class of sort.py
     """
 
     def test_dagify(self):
@@ -81,11 +81,20 @@ class DAGifyTest(unittest.TestCase):
         dagify.recursive_merge(0)
         graph = dagify.to_graph()
 
-        graph_by_toplogical_sort = gfa.to_graph
+        a = 'a'
         x = 'x'
         y = 'y'
         z = 'z'
-        self.assertEqual(graph, graph_by_toplogical_sort)
+        self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['G', {x}, 'A', {y, z}], ['C', {x, y}, 'T', {z}], ['TTG', {x, y, z}], ['G', {x, y}, 'A', {a, z}], ['AAATTTTCTGGAGTTCTAT', {a, x, y, z}], ['A', {a, z}, 'T', {x, y}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
+
+    def test_dagify3(self):
+        gfa = GFA.load_from_gfa("../test/test3.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        dagify.recursive_merge(0)
+        graph = dagify.to_graph()
+        print(graph)
+
 
 class GFATest(unittest.TestCase):
     """ test class of gfa.py
