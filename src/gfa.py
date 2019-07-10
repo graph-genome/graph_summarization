@@ -106,18 +106,13 @@ class GFA:
 
     @classmethod
     def from_graph(cls, graph: Graph):
+        """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
-        path_list = defaultdict(list)
-        segment_id = 0
-        for slice in graph.slices:
-            for node in slice.nodes:
-                segment_id += 1
-                gfa.add_line('\t'.join(['S', str(segment_id), node.seq]))
-                for path in node.paths:
-                    path_list[path].append(segment_id)
-        for path_key in path_list:
-            path_values = [str(x) for x in path_list[path_key]]
-            gfa.add_line('\t'.join(['P', path_key, "+,".join(path_values)+"+", ",".join(['*' for _ in path_values])]))
+        for path in graph.paths.values():
+            node_series = ",".join([traverse.node.id + traverse.strand for traverse in path.nodes])
+            gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
+        for node in graph.nodes.values(): # in no particular order
+            gfa.add_line('\t'.join(['S', str(node.id), node.seq]))
         return cls(gfa)
 
     @property

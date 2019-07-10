@@ -188,63 +188,24 @@ class NodeTraversal:
 
 
 class Graph:
-    def __init__(self, paths: List = None):
-        """Factory for generating graphs from a representation"""
-        self.slices = []  # only get populated by compute_slices()
+    def __init__(self, paths: Iterable = None):
         # This can create orphan Nodes with no traversals
         self.nodes = keydefaultdict(lambda key: Node(key, []))  # node id = Node object
         if all(isinstance(x, str) for x in paths):
             self.paths = {x: Path(x) for x in paths}
         elif all(isinstance(x, Path) for x in paths):
-            self.paths = {path.name: path for path in paths}
+            self.paths = {path.accession: path for path in paths}
         else:
             self.paths = {}
-        #TODO: calculate slices?
-
-    @staticmethod
-    def build(cmd):
-        """This factory uses existing slice declarations to build a graph with Paths populated in the order
-        that they are mentioned in the slices.  Currently, this is + only and does not support non-linear
-        orderings.  Use Path.append_node() to build non-linear graphs."""
-        path_dict = keydefaultdict(lambda key: Path(key))  # construct blank path if new
-        slices = []
-        if isinstance(cmd, str):
-            cmd = eval(cmd)
-        for sl in cmd:
-            current_slice = []
-            if isinstance(sl, Slice):
-                slices.append(sl)
-            else:
-                if isinstance(sl[0], Node):  # already Nodes, don't need to build
-                    current_slice = sl
-                else:
-                    try:
-                        for i in range(0, len(sl), 2):
-                            paths = [path_dict[key] for key in sl[i + 1]]
-                            current_slice.append(Node(sl[i], paths))
-                    except IndexError:
-                        raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
-
-                slices.append(Slice(current_slice))
-        return Graph.load_from_slices(slices)
-
-    @classmethod
-    def load_from_slices(cls, slices):
-        graph = cls([])
-        graph.slices = slices
-        return graph
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
-        return self.slices.__repr__()
-
-    def __getitem__(self, i):
-        return self.slices[i]
+        return self.paths.__repr__()
 
     def __eq__(self, representation):
         if isinstance(representation, Graph):
-            return all(slice_a == slice_b for slice_a, slice_b in zip_longest(self.slices, representation.slices))
-        return self == Graph.build(representation)  # build a graph then compare it
+            return all(path_a == path_b for path_a, path_b in zip_longest(self.paths, representation.paths))
+        raise TypeError("Graphs can only compare with other Graphs", type(representation))
 
     def load_from_pickle(self, file: str):
         self = pickle.load(file)
@@ -275,18 +236,82 @@ class Graph:
         self.paths[path_name].append_node(self.nodes[node_id], strand)
 
     def compute_slices(self):
+        """Alias: Upgrades a Graph to a SlicedGraph"""
+        return SlicedGraph.from_graph(self)
+
+
+class SlicedGraph(Graph):
+    def __init__(self, paths):
+        super(SlicedGraph, self).__init__(paths)
+        """Factory for generating graphs from a representation"""
+        self.slices = []  # only get populated by compute_slices()
+
+        if not self.slices:
+            self.compute_slices()
+
+    def __eq__(self, representation):
+        if isinstance(representation, SlicedGraph):
+            return all(slice_a == slice_b for slice_a, slice_b in zip_longest(self.slices, representation.slices))
+        return self == SlicedGraph.build(representation)  # build a graph then compare it
+
+    def __repr__(self):
+        """Warning: the representation strings are very sensitive to whitespace"""
+        return self.slices.__repr__()
+
+    def __getitem__(self, i):
+        return self.slices[i]
+
+    @staticmethod
+    def from_graph(graph):
+        g = SlicedGraph([])
+        g.paths = graph.paths  # shallow copy all relevant fields
+        g.nodes = graph.nodes
+        g.compute_slices()
+        return g
+
+    def compute_slices(self):
         """TODO: This is a mockup stand in for the real method."""
+        if not self.paths:  # nothing to do
+            return self
         first_path = next(iter(self.paths.values()))
         for node_traversal in first_path:
             node = node_traversal.node
             self.slices.append(Slice([node]))
         return self
 
+    @staticmethod
+    def build(cmd):
+        """This factory uses existing slice declarations to build a graph with Paths populated in the order
+        that they are mentioned in the slices.  Currently, this is + only and does not support non-linear
+        orderings.  Use Path.append_node() to build non-linear graphs."""
+        if isinstance(cmd, str):
+            cmd = eval(cmd)
+        # preemptively grab all the path names from every odd list entry
+        paths = {key for sl in cmd for i in range(0, len(sl), 2) for key in sl[i + 1]}
+        graph = SlicedGraph(paths)
+        for sl in cmd:
+            current_slice = []
+            if isinstance(sl, Slice):
+                graph.slices.append(sl)
+            else:
+                if isinstance(sl[0], Node):  # already Nodes, don't need to build
+                    current_slice = sl
+                else:
+                    try:
+                        for i in range(0, len(sl), 2):
+                            paths = [graph.paths[key] for key in sl[i + 1]]
+                            current_slice.append(Node(sl[i], paths))
+                    except IndexError:
+                        raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
 
-# class SlicedGraph(Graph):
-#     def __init__(self, paths):
-#         super(SlicedGraph, self).__init__(paths)
+                graph.slices.append(Slice(current_slice))
+        return graph
 
+    @classmethod
+    def load_from_slices(cls, slices, paths):
+        graph = cls(paths)
+        graph.slices = slices
+        return graph
 
 
 if __name__ == "__main__":

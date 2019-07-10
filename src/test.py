@@ -1,7 +1,7 @@
 import unittest
 from src.gfa import GFA
 from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError, \
-    Path
+    Path, SlicedGraph
 
 
 def G(rep):
@@ -34,6 +34,7 @@ class GraphTest(unittest.TestCase):
     def example_graph(self):
         # IMPORTANT: Never reuse Paths: Paths must be created fresh for each graph
         a, b, c, d, e = Path('a'), Path('b'), Path('c'), Path('d'), Path('e')
+        paths = [a, b, c, d, e]
         factory_input = [Slice([Node('ACGT', {a,b,c,d})]),
                        Slice([Node('C',{a,b,d}),Node('T', {c})]),
                        Slice([Node('GGA',{a,b,c,d})]),
@@ -48,7 +49,7 @@ class GraphTest(unittest.TestCase):
                        Slice([Node('TATA', {a, b, c, d})])  # anchor
                           ]
 
-        base_graph = Graph.load_from_slices(factory_input)
+        base_graph = SlicedGraph.load_from_slices(factory_input, paths)
         return base_graph
 
     def test_equalities(self):
@@ -57,17 +58,18 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(Node('A', {Path('x'),Path('y')}),Node('A', {Path('x'),Path('y')}))
         self.assertEqual(Slice([Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')})]),
                          Slice([Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')})]))
-        self.assertEqual(Graph.build([['ACGT', {a, b, c, d}]]), Graph.build([['ACGT', {a, b, c, d}]]))
+        self.assertEqual(SlicedGraph.build([['ACGT', {a, b, c, d}]]), SlicedGraph.build([['ACGT', {a, b, c, d}]]))
 
     def test_graph_factory(self):
         base_graph = self.example_graph()
-        g1, g2 = Graph.build(self.factory_input), Graph.build(self.factory_input)
+        g1, g2 = SlicedGraph.build(self.factory_input), SlicedGraph.build(self.factory_input)
         assert g1 == g2, \
             ('\n' + repr(g1) + '\n' + repr(g2))
-        g_double = Graph.build(eval(str(base_graph)))
+        g_double = SlicedGraph.build(eval(str(base_graph)))
         # WARN: Never compare two string literals: could be order sensitive, one object must be Graph
         #str(g_double) == str(base_graph)
         assert g_double == base_graph, repr(g_double) + '\n' + repr(base_graph)
+        assert g1 == base_graph, repr(g1) + '\n' + repr(base_graph)
         assert g_double == self.factory_input
         assert g_double == str(self.factory_input)
 
@@ -96,8 +98,10 @@ class GFATest(unittest.TestCase):
         self.assertEqual(len(graph.nodes), 15)
 
     def test_gfa_to_sliced_graph(self):
+        #TODO: this is currently close but not quite there.
+        # Slices must be fully defined in SlicedGraph.compute_slices()
         graph, gfa = self.make_graph_from_gfa()
-        slices = graph.compute_slices()
+        slices = SlicedGraph.from_graph(graph)
         x = 'x'
         y = 'y'
         z = 'z'
