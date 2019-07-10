@@ -1,4 +1,5 @@
 import unittest
+import os
 from src.gfa import GFA
 from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError, \
     Path, SlicedGraph
@@ -78,6 +79,21 @@ class GraphTest(unittest.TestCase):
             G([['C', {Path('a'), Path('b')}], ['T', {Path('12'), Path('16')}]])
 
 
+# function to get the path
+def pf(wd, path):
+    return os.path.join(wd, path)
+
+# Define the working directory
+WD = os.path.dirname(__file__)
+# as our current setup stores the test data in an extra folder this is a dirty workaround
+# hopefully Travis eats this
+WD = WD[0:-4]
+
+
+# Define several test example directories
+PATH_TO_TEST_DATA = pf(WD, "test/")
+
+
 class GFATest(unittest.TestCase):
     """ test class of gfa.py
     """
@@ -109,7 +125,7 @@ class GFATest(unittest.TestCase):
         self.assertEqual(slices, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
 
     def make_graph_from_gfa(self):
-        gfa = GFA.load_from_gfa("../test/test.gfa")
+        gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "test.gfa")
         graph = gfa.to_graph
         return graph, gfa
 
@@ -119,7 +135,7 @@ class GFATest(unittest.TestCase):
         self.assertFalse(self.is_different(gfa.gfa, new_gfa.gfa))
 
     def test_load_gfa_to_graph_2(self):
-        gfa = GFA.load_from_gfa("../test/test2.gfa")
+        gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "test2.gfa")
         graph = gfa.to_graph
         self.assertIsNotNone(graph)
 
