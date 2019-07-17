@@ -131,7 +131,7 @@ class GFA:
         for path in self.gfa.paths:
             nodes = []
             for node in path.segment_names:
-                node_index = NodeIndex(Node(node_hash[node.name + node.orient].seq, [], node.name), node.orient)
+                node_index = NodeTraversal(Node(node_hash[node.name + node.orient].seq, [], node.name), node.orient)
                 nodes.append(node_index)
             paths.append(Path(path.name, nodes))
 
@@ -196,7 +196,7 @@ class GFA:
                 else:
                     current_slice.add_node(node_hash[node])
 
-        base_graph = Graph.load_from_slices(factory_input)
+        base_graph = SlicedGraph.load_from_slices(factory_input, self.gfa.paths)
         return base_graph
 
 

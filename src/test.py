@@ -107,11 +107,8 @@ WD = WD[0:-4]
 
 # Define several test example directories
 PATH_TO_TEST_DATA = pf(WD, "test/")
+x,y,z,a = 'x', 'y', 'z', 'a'
 
-a = 'a'
-x = 'x'
-y = 'y'
-z = 'z'
 class DAGifyTest(unittest.TestCase):
     """ test class of sort.py
     """
@@ -121,11 +118,11 @@ class DAGifyTest(unittest.TestCase):
         gfa = GFA.load_from_gfa("../test/test.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        dagify.recursive_merge(0)
-        graph = dagify.to_graph()
+        profile = dagify.recursive_merge(0)
+        graph = dagify.to_graph(profile)
+#        x, y, z = graph.paths['x'], graph.paths['y'], graph.paths['z']
 
-        graph_by_toplogical_sort = gfa.to_graph
-        self.assertEqual(graph, graph_by_toplogical_sort)
+        self.assertEqual([['CAAATAAG', {x,y,z}], ['A', {y,z}, 'G', {x}], ['C', {x,y,z}], ['TTG', {x,y,z}], ['A', {z}, 'G', {x,y}], ['AAATTTTCTGGAGTTCTAT', {x,y,z}], ['T', {x,y,z}], ['ATAT', {x,y,z}], ['T', {x,y,z}], ['CCAACTCTCTG', {x,y,z}]], graph)
 
     def test_dagify2(self):
         gfa = GFA.load_from_gfa("../test/test2.gfa")
@@ -133,7 +130,8 @@ class DAGifyTest(unittest.TestCase):
         dagify = DAGify(paths)
         profile = dagify.recursive_merge(0)
         graph = dagify.to_graph(profile)
-        self.assertEqual(graph, [['CAAATAAG', {x, y, z}], ['G', {x}, 'A', {y, z}], ['C', {x, y}, 'T', {z}], ['TTG', {x, y, z}], ['G', {x, y}, 'A', {a, z}], ['AAATTTTCTGGAGTTCTAT', {a, x, y, z}], ['A', {a, z}, 'T', {x, y}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
+        x,y,z,a = 'x', 'y', 'z', 'a'
+        self.assertEqual([['CAAATAAG', {x, y, z}], ['G', {x}, 'A', {y, z}], ['C', {x, y}, 'T', {z}], ['TTG', {x, y, z}], ['G', {x, y}, 'A', {a, z}], ['AAATTTTCTGGAGTTCTAT', {a, x, y, z}], ['A', {a, z}, 'T', {x, y}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]], graph)
 
     def test_dagify3(self):
         gfa = GFA.load_from_gfa("../test/test3.gfa")
