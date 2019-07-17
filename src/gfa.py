@@ -71,7 +71,7 @@ class GFA:
     #        return graph
 
     @classmethod
-    def load_form_xg(cls, file: str, xg_bin: str):
+    def load_from_xg(cls, file: str, xg_bin: str):
         gfa = gfapy.Gfa()
         process = subprocess.Popen([xg_bin, "-i", file, "--gfa-out"], stdout=subprocess.PIPE)
         with io.open(process.stdout.fileno(), closefd=False) as stream:
@@ -106,18 +106,13 @@ class GFA:
 
     @classmethod
     def from_graph(cls, graph: Graph):
+        """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
-        path_list = defaultdict(list)
-        segment_id = 0
-        for slice in graph.slices:
-            for node in slice.nodes:
-                segment_id += 1
-                gfa.add_line('\t'.join(['S', str(segment_id), node.seq]))
-                for path in node.paths:
-                    path_list[path].append(segment_id)
-        for path_key in path_list:
-            path_values = [str(x) for x in path_list[path_key]]
-            gfa.add_line('\t'.join(['P', path_key, "+,".join(path_values)+"+", ",".join(['*' for _ in path_values])]))
+        for path in graph.paths.values():
+            node_series = ",".join([traverse.node.id + traverse.strand for traverse in path.nodes])
+            gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
+        for node in graph.nodes.values(): # in no particular order
+            gfa.add_line('\t'.join(['S', str(node.id), node.seq]))
         return cls(gfa)
 
     @property
@@ -144,6 +139,17 @@ class GFA:
 
     @property
     def to_graph(self):
+        # Extract all paths into graph
+        path_names = [p.name for p in self.gfa.paths]
+        graph = Graph(path_names)  # Paths can be empty at start
+        for path in self.gfa.paths:
+            for node in path.segment_names:
+                graph.append_node_to_path(node.name, node.orient, path.name)
+        for segment in self.gfa.segments:
+            graph.nodes[segment.name].seq = segment.sequence
+        return graph
+        # IMPORTANT: It's not clear to Josiah how much of the below is necessary, so it's being left unmodified.
+
         topological_sort_helper = TopologicalSort()
         path_dict = defaultdict(list)
         node_hash = {}

@@ -32,9 +32,11 @@
 *.app
 
 # Tests
-test/*.xg
+test/ignore_output.xg
 test/*.pickle
-test/xg
 
 __pycache__
 desktop.ini
+
+# PyCharm
+.idea
