@@ -118,27 +118,27 @@ class DAGify:
             if len(prof.paths) == len(candidate_paths_set):
                 if len(current_slice.nodes) > 0:
                     if prof.candidate_paths - all_path_set != set():
-                        current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
+                        current_slice.add_node(NodeTraversal(Node("", prof.candidate_paths - all_path_set)))
                     factory_input.append(current_slice)
-                factory_input.append(Slice([Node(prof.node.node.seq, paths, prof.node.node.id)]))
+                factory_input.append(Slice([NodeTraversal(Node(prof.node.node.seq, paths, prof.node.node.id), prof.node.strand)]))
                 current_slice = Slice([])
                 current_paths = []
             else:
                 if set([x for x in prof.paths]) & all_path_set != set():
                     if len(current_slice.nodes) > 0:
                         if prof.candidate_paths - all_path_set != set():
-                            current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
+                            current_slice.add_node(NodeTraversal(Node("", prof.candidate_paths - all_path_set)))
                         factory_input.append(current_slice)
-                    current_slice = Slice([Node(prof.node.node.seq, paths, prof.node.node.id)])
+                    current_slice = Slice([NodeTraversal(Node(prof.node.node.seq, paths, prof.node.node.id), prof.node.strand)])
                     current_paths = paths
                 else:
-                    current_slice.add_node(Node(prof.node.node.seq, paths, prof.node.node.id))
+                    current_slice.add_node(NodeTraversal(Node(prof.node.node.seq, paths, prof.node.node.id), prof.node.strand))
                     current_paths.extend(paths)
 
         if len(current_slice.nodes) > 0:
             all_path_set = set([x for x in current_paths])
             if profile[-1].candidate_paths - all_path_set != set():
-                current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
+                current_slice.add_node(NodeTraversal(Node("", prof.candidate_paths - all_path_set)))
             factory_input.append(current_slice)
         return factory_input
 

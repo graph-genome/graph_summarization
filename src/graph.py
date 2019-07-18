@@ -67,11 +67,36 @@ class Node:
         return Node(self.seq + downstream.seq,
                  self.paths.union(downstream.paths))
 
+
+class NodeTraversal:
+    """Link from a Path to a Node it is currently traversing.  Includes strand"""
+    def __init__(self, node: Node, strand: str = '+'):
+        self.node = node
+        self.strand = strand  # TODO: make this required
+
+    def __repr__(self):
+        if self.strand == '+':
+            return repr(self.node.seq) + \
+            ', {' + ', '.join(str(i) for i in list(self.node.paths)) + '}'
+        else:
+            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+            complement_seq =  "".join(complement.get(base, base) for base in reversed(self.node.seq))
+            return repr(complement_seq) + \
+                   ', {' + ', '.join(str(i) for i in list(self.node.paths)) + '}'
+
+    def __eq__(self, other):
+        return self.node.id == other.node.id and self.strand == other.strand
+
+    def __hash__(self):
+        return hash(self.node.id) + hash(self.strand)
+
+
+
 class Slice:
-    def __init__(self, nodes: Iterable[Node]):
+    def __init__(self, nodes: Iterable[NodeTraversal]):
         self.nodes = set(nodes)
 
-    def add_node(self, node: Node):
+    def add_node(self, node: NodeTraversal):
         self.nodes.add(node)
 
     def alternatives(self, main):
@@ -179,23 +204,6 @@ class PathIndex:
     def __hash__(self):
         return hash(self.path.accession)  # * (self.index if self.index else 1)
 
-
-class NodeTraversal:
-    """Link from a Path to a Node it is currently traversing.  Includes strand"""
-    def __init__(self, node: Node, strand: str = '+'):
-        self.node = node
-        self.strand = strand  # TODO: make this required
-
-    def __repr__(self):
-        if self.strand == '+':
-            return self.node.seq
-        else:
-            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
-            return "".join(complement.get(base, base) for base in reversed(self.node.seq))
-
-
-    def __eq__(self, other):
-        return self.node.id == other.node.id and self.strand == other.strand
 
 
 class Graph:

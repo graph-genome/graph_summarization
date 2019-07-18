@@ -187,14 +187,14 @@ class DAGifyTest(unittest.TestCase):
         graph = dagify.to_graph(profile)
         self.assertEqual(graph, [])
 
-    @unittest.skip("Inversion is unsupported")
+    # @unittest.skip("Inversion is unsupported")
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
-        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
+        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'GT', {y}], ['G', {x, y}]])
 
 
 location_of_xg = "../test/xg"
