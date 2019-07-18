@@ -104,7 +104,7 @@ class DAGify:
 
         return index
 
-    def to_graph(self, profile: List[Profile]):
+    def to_slices(self, profile: List[Profile]):
         factory_input = []
         current_slice = Slice([])
         current_paths = []
@@ -118,11 +118,6 @@ class DAGify:
                 current_paths = []
             else:
                 all_path_set = set([x for x in current_paths])
-                all_set = set()
-                for items in [x.paths for x in current_slice]:
-                     items = set(items) #print(type(list(items)[0]))
-                     all_set |= items
-                # print(all_set, prof.candidate_paths, prof.paths, set([x.name for x in prof.paths]) & all_set)
                 if set([x for x in prof.paths]) & all_path_set != set():
                     if len(current_slice.nodes) > 0:
                         if prof.candidate_paths - all_path_set != set():
@@ -133,7 +128,11 @@ class DAGify:
                 else:
                     current_slice.add_node(Node(prof.node.node.seq, paths, prof.node.node.id))
                     current_paths.extend(paths)
+        return factory_input
 
+
+    def to_graph(self, profile: List[Profile]):
+        factory_input = self.to_slices(profile)
         base_graph = SlicedGraph.load_from_slices(factory_input, self.paths)
         # print(factory_input)
         return base_graph

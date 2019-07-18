@@ -147,57 +147,9 @@ class GFA:
                 graph.append_node_to_path(node.name, node.orient, path.name)
         for segment in self.gfa.segments:
             graph.nodes[segment.name].seq = segment.sequence
+        graph.paths = self.to_paths
         return graph
         # IMPORTANT: It's not clear to Josiah how much of the below is necessary, so it's being left unmodified.
-
-        topological_sort_helper = TopologicalSort()
-        path_dict = defaultdict(list)
-        node_hash = {}
-
-        # Extract all paths into graph
-        for path in self.gfa.paths:
-            for node in path.segment_names:
-                path_dict[node.name + node.orient].append(path.name)
-            for node_pair in pairwise(path.segment_names):
-                topological_sort_helper.add_edge(
-                    node_pair[0].name + node_pair[0].orient,
-                    node_pair[1].name + node_pair[1].orient)
-
-        # Extract all nodes in the graph.
-        for segment in self.gfa.segments:
-            node_id = segment.name + "+"
-            node = Node(segment.sequence, path_dict[node_id])
-            node_hash[node_id] = node
-
-            node_id = segment.name + "-"
-            node = Node(segment.sequence, path_dict[node_id])
-            node_hash[node_id] = node
-
-        node_stack = topological_sort_helper.topologicalSort()
-
-        # Cluster nodes as multiple slices according to the result of the topological sort.
-        factory_input = []
-        current_slice = Slice([])
-        for node in node_stack:
-            if len(path_dict[node]) == len(self.gfa.paths):
-                if len(current_slice.nodes) > 0:
-                    factory_input.append(current_slice)
-                factory_input.append(Slice([node_hash[node]]))
-                current_slice = Slice([])
-            else:
-                all_set = set()
-                for items in [x.paths for x in current_slice.nodes]:
-                    all_set = all_set | items
-                if set(path_dict[node]) & all_set != set():
-                    if len(current_slice.nodes) > 0:
-                        current_slice.add_node(Node("", set([x.name for x in self.gfa.paths]) - all_set))
-                        factory_input.append(current_slice)
-                    current_slice = Slice([node_hash[node]])
-                else:
-                    current_slice.add_node(node_hash[node])
-
-        base_graph = SlicedGraph.load_from_slices(factory_input, self.gfa.paths)
-        return base_graph
 
 
 '''

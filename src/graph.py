@@ -275,7 +275,7 @@ class SlicedGraph(Graph):
         g = SlicedGraph([])
         g.paths = graph.paths  # shallow copy all relevant fields
         g.nodes = graph.nodes
-        g.compute_slices()
+        g.compute_slices_by_dagify()
         return g
 
     def compute_slices(self):
@@ -294,8 +294,8 @@ class SlicedGraph(Graph):
             return self
         dagify = DAGify(self.paths)
         profile = dagify.recursive_merge(0)
-        graph = dagify.to_graph(profile)
-        self.slices = graph.slices
+        slices = dagify.to_slices(profile)
+        self.slices = slices
         return self
 
     @staticmethod
