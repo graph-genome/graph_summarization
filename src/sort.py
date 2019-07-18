@@ -100,7 +100,7 @@ class DAGify:
             j -= 1
 
         index.reverse()
-        # print(index)
+        print(index)
 
         return index
 
@@ -108,11 +108,16 @@ class DAGify:
         factory_input = []
         current_slice = Slice([])
         current_paths = []
-        for prof in profile:
+        # print(profile)
+        for index, prof in enumerate(profile):
             paths = [x for x in prof.paths]
             all_path_set = set([x for x in current_paths])
             # print(prof, current_slice, current_paths)
-            if len(prof.paths) == len(prof.candidate_paths):
+            candidate_paths_set = prof.candidate_paths
+            if index + 1 != len(profile):
+                candidate_paths_set |= profile[index+1].candidate_paths
+
+            if len(prof.paths) == len(candidate_paths_set):
                 if len(current_slice.nodes) > 0:
                     if prof.candidate_paths - all_path_set != set():
                         current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
@@ -131,6 +136,12 @@ class DAGify:
                 else:
                     current_slice.add_node(Node(prof.node.node.seq, paths, prof.node.node.id))
                     current_paths.extend(paths)
+
+        if len(current_slice.nodes) > 0:
+            all_path_set = set([x for x in current_paths])
+            if profile[-1].candidate_paths - all_path_set != set():
+                current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
+            factory_input.append(current_slice)
         return factory_input
 
     def to_graph(self, profile: List[Profile]):
