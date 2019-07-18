@@ -94,13 +94,11 @@ class DAGify:
             i -= 1
 
         while j > 0:
-#            print(s2.nodes[j - 1], type(s2.nodes[j - 1]))
             prev.add(s2.nodes[j - 1].node.id)
             index.append(Profile(s2.nodes[j - 1], [s2], {s2}, False))
             j -= 1
 
         index.reverse()
-        print(index)
 
         return index
 
@@ -108,7 +106,7 @@ class DAGify:
         factory_input = []
         current_slice = Slice([])
         current_paths = []
-        # print(profile)
+
         for index, prof in enumerate(profile):
             paths = [x for x in prof.paths]
             all_path_set = set([x for x in current_paths])

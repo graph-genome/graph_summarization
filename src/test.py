@@ -187,6 +187,7 @@ class DAGifyTest(unittest.TestCase):
         graph = dagify.to_graph(profile)
         self.assertEqual(graph, [])
 
+    @unittest.skip("Inversion is unsupported")
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
         paths = gfa.to_paths
@@ -196,14 +197,17 @@ class DAGifyTest(unittest.TestCase):
 #        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['A', {x,y}], ['G', {x, y}]])
         self.assertEqual(graph, [['CAAATAAG', {x,y}], ['A', {x}, 'A', {y}], ['G', {x, y}]])
 
+
+location_of_xg = "../test/xg"
+
+
 class GFATest(unittest.TestCase):
     """ test class of gfa.py
     """
 
-    @unittest.expectedFailure
+    @unittest.skipIf(not os.path.isfile(location_of_xg), "XG binary is not found.")
     def test_gfa(self):
         self.maxDiff = None
-        location_of_xg = "../test/xg"
         graph = GFA.load_from_gfa("../test/test.gfa")
         graph.save_as_xg("../test/test.xg", location_of_xg)
         graph2 = GFA.load_from_xg("../test/test.xg", location_of_xg)
@@ -254,11 +258,11 @@ class GFATest(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_load_gfa_via_xg(self):
-        location_of_xg = "../test/xg"
         graph = GFA.load_from_gfa("../test/test.gfa")
         graph.save_as_xg("../test/test.xg", location_of_xg)
         graph2 = GFA.load_from_xg("../test/test.xg", location_of_xg)
         graph = graph2.to_graph
+        graph = SlicedGraph.from_graph(graph)
         x = 'x'
         y = 'y'
         z = 'z'
