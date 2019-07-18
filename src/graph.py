@@ -85,11 +85,19 @@ class NodeTraversal:
                    ', {' + ', '.join(str(i) for i in list(self.node.paths)) + '}'
 
     def __eq__(self, other):
-        return self.node.id == other.node.id and self.strand == other.strand
+        complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+        complement_seq = "".join(complement.get(base, base) for base in reversed(self.node.seq))
+        return (self.node.seq == other.node.seq and self.strand == other.strand) \
+               or (self.strand != other.strand and complement_seq == other.node.seq)
 
     def __hash__(self):
-        return hash(self.node.id) + hash(self.strand)
-
+        if self.strand == '-':
+            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+            complement_seq =  "".join(complement.get(base, base) for base in reversed(self.node.seq))
+            return hash(complement_seq)
+        else:
+            return hash(self.node.seq)
+#        return hash(self.node) + hash(self.strand)
 
 
 class Slice:
@@ -333,7 +341,7 @@ class SlicedGraph(Graph):
                     try:
                         for i in range(0, len(sl), 2):
                             paths = [graph.paths[key] for key in sl[i + 1]]
-                            current_slice.append(Node(sl[i], paths))
+                            current_slice.append(NodeTraversal(Node(sl[i], paths)))
                     except IndexError:
                         raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
 

@@ -169,7 +169,7 @@ class DAGifyTest(unittest.TestCase):
         graph = dagify.to_graph(profile)
         self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
 
-    @unittest.skip("Inversion is unsupported")
+#    @unittest.skip("Inversion is unsupported")
     def test_inversion(self):
         gfa = GFA.load_from_gfa("../test/inversion.gfa")
         paths = gfa.to_paths
