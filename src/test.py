@@ -149,7 +149,7 @@ class DAGifyTest(unittest.TestCase):
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
         self.assertEqual(rep_count, 1)
-        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['A', {x}], ['G', {x, y}], ['A', {y}], ['T', {x, y}]])
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['A', {x}, '', {y}], ['G', {x, y}], ['A', {y}, '', {x}], ['T', {x, y}]])
 
     def test_dagify_dup(self):
         gfa = GFA.load_from_gfa("../test/duplicate.gfa")
@@ -158,9 +158,43 @@ class DAGifyTest(unittest.TestCase):
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
         self.assertEqual(rep_count, 2)
-        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['', {x}, 'A', {y}], ['G', {y}], ['A', {x, y}], ['G', {x, y}], ['T', {x, y}]])
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['', {x}, 'A', {y}], ['', {x}, 'G', {y}], ['A', {x, y}], ['G', {x, y}], ['T', {x, y}]])
 
 
+    def test_unresolved_repreat(self):
+        gfa = GFA.load_from_gfa("../test/unresolved_repeat.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
+
+    @unittest.skip("Inversion is unsupported")
+    def test_inversion(self):
+        gfa = GFA.load_from_gfa("../test/inversion.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(graph, [])
+
+    @unittest.skip("Inversion is unsupported")
+    def test_nested_inversion(self):
+        gfa = GFA.load_from_gfa("../test/nested_inv.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(graph, [])
+
+    def test_simple_inversion(self):
+        gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+#        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['A', {x,y}], ['G', {x, y}]])
+        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['A', {x}, 'A', {y}], ['G', {x, y}]])
 
 class GFATest(unittest.TestCase):
     """ test class of gfa.py

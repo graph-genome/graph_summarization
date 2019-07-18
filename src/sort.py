@@ -10,7 +10,7 @@ class Profile:
     duplicate: bool = False
 
     def __repr__(self):
-        return "["+str(self.node.node) + str(self.paths)+"]"
+        return "["+str(self.node.node) + str(self.paths)+":"+str(self.candidate_paths) +"]"
 
 class DAGify:
     def __init__(self, paths: List[Path], nodes={}):
@@ -55,7 +55,6 @@ class DAGify:
         index = []
         prev = set()
         candidate_path_flag = False
-#        print(s1., s2.nodes)
 
         while i > 0 and j > 0:
             if s1[i-1].node == s2.nodes[j-1]:
@@ -79,7 +78,7 @@ class DAGify:
                 i -= 1
             else:
                 candidate_paths = {s2}
-                if s1[i]:
+                if i > n and s1[i]:
                     candidate_paths |= s1[i].candidate_paths
                 if s1[i-1]:
                     candidate_paths |= s1[i-1].candidate_paths
@@ -95,29 +94,33 @@ class DAGify:
             i -= 1
 
         while j > 0:
-            print(s2.nodes[j - 1], type(s2.nodes[j - 1]))
+#            print(s2.nodes[j - 1], type(s2.nodes[j - 1]))
             prev.add(s2.nodes[j - 1].node.id)
             index.append(Profile(s2.nodes[j - 1], [s2], {s2}, False))
             j -= 1
 
         index.reverse()
+        # print(index)
 
         return index
 
-    def to_slices(self, profile: List[Profile]):
+    def to_slices(self, profile: List[Profile]) -> List[Path]:
         factory_input = []
         current_slice = Slice([])
         current_paths = []
         for prof in profile:
             paths = [x for x in prof.paths]
+            all_path_set = set([x for x in current_paths])
+            # print(prof, current_slice, current_paths)
             if len(prof.paths) == len(prof.candidate_paths):
                 if len(current_slice.nodes) > 0:
+                    if prof.candidate_paths - all_path_set != set():
+                        current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
                     factory_input.append(current_slice)
                 factory_input.append(Slice([Node(prof.node.node.seq, paths, prof.node.node.id)]))
                 current_slice = Slice([])
                 current_paths = []
             else:
-                all_path_set = set([x for x in current_paths])
                 if set([x for x in prof.paths]) & all_path_set != set():
                     if len(current_slice.nodes) > 0:
                         if prof.candidate_paths - all_path_set != set():
@@ -130,9 +133,7 @@ class DAGify:
                     current_paths.extend(paths)
         return factory_input
 
-
     def to_graph(self, profile: List[Profile]):
         factory_input = self.to_slices(profile)
         base_graph = SlicedGraph.load_from_slices(factory_input, self.paths)
-        # print(factory_input)
         return base_graph
