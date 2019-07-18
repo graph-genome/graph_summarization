@@ -194,8 +194,7 @@ class DAGifyTest(unittest.TestCase):
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
-#        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['A', {x,y}], ['G', {x, y}]])
-        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['A', {x}, 'A', {y}], ['G', {x, y}]])
+        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
 
 
 location_of_xg = "../test/xg"

@@ -187,10 +187,15 @@ class NodeTraversal:
         self.strand = strand  # TODO: make this required
 
     def __repr__(self):
-        return self.node.seq
+        if self.strand == '+':
+            return self.node.seq
+        else:
+            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+            return "".join(complement.get(base, base) for base in reversed(self.node.seq))
+
 
     def __eq__(self, other):
-        return self.node.id == other.node.id
+        return self.node.id == other.node.id and self.strand == other.strand
 
 
 class Graph:
