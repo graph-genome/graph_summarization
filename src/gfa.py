@@ -108,7 +108,7 @@ class GFA:
     def from_graph(cls, graph: Graph):
         """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
-        for path in graph.paths.values():
+        for path in graph.paths:
             node_series = ",".join([traverse.node.id + traverse.strand for traverse in path.nodes])
             gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
         for node in graph.nodes.values(): # in no particular order
