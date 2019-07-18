@@ -192,6 +192,17 @@ class GFATest(unittest.TestCase):
         print(slices)
         self.assertEqual(slices, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
 
+    def test_gfa_to_sliced_graph_via_dagify(self):
+        #TODO: this is currently close but not quite there.
+        # Slices must be fully defined in SlicedGraph.compute_slices()
+        graph, gfa = self.make_graph_from_gfa()
+        slices = SlicedGraph.from_graph(graph)
+        x = 'x'
+        y = 'y'
+        z = 'z'
+        print(slices)
+        self.assertEqual(slices, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
+
     def make_graph_from_gfa(self):
         gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "test.gfa")
         graph = gfa.to_graph

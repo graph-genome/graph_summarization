@@ -246,6 +246,9 @@ class Graph:
         return SlicedGraph.from_graph(self)
 
 
+from sort import DAGify
+
+
 class SlicedGraph(Graph):
     def __init__(self, paths):
         super(SlicedGraph, self).__init__(paths)
@@ -256,7 +259,6 @@ class SlicedGraph(Graph):
             self.compute_slices()
 
     def __eq__(self, representation):
-        print(self,representation)
         if isinstance(representation, SlicedGraph):
             return all(slice_a == slice_b for slice_a, slice_b in zip_longest(self.slices, representation.slices))
         return self == SlicedGraph.build(representation)  # build a graph then compare it
@@ -286,6 +288,16 @@ class SlicedGraph(Graph):
             self.slices.append(Slice([node]))
         return self
 
+    def compute_slices_by_dagify(self):
+        """This method uses DAGify algorithm to compute slices."""
+        if not self.paths:
+            return self
+        dagify = DAGify(self.paths)
+        profile = dagify.recursive_merge(0)
+        graph = dagify.to_graph(profile)
+        self.slices = graph.slices
+        return self
+
     @staticmethod
     def build(cmd):
         """This factory uses existing slice declarations to build a graph with Paths populated in the order
@@ -296,6 +308,7 @@ class SlicedGraph(Graph):
         # preemptively grab all the path names from every odd list entry
         paths = {key for sl in cmd for i in range(0, len(sl), 2) for key in sl[i + 1]}
         graph = SlicedGraph(paths)
+        graph.slices = []
         for sl in cmd:
             current_slice = []
             if isinstance(sl, Slice):
