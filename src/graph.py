@@ -85,19 +85,20 @@ class NodeTraversal:
                    ', {' + ', '.join(str(i) for i in list(self.node.paths)) + '}'
 
     def __eq__(self, other):
-        complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
-        complement_seq = "".join(complement.get(base, base) for base in reversed(self.node.seq))
-        return (self.node.seq == other.node.seq and self.strand == other.strand) \
-               or (self.strand != other.strand and complement_seq == other.node.seq)
+        return (self.node.seq == other.node.seq and self.strand == other.strand)
+        # complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+        # complement_seq = "".join(complement.get(base, base) for base in reversed(self.node.seq))
+        # return (self.node.seq == other.node.seq and self.strand == other.strand) \
+        #       or (self.strand != other.strand and complement_seq == other.node.seq)
 
     def __hash__(self):
-        if self.strand == '-':
-            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
-            complement_seq =  "".join(complement.get(base, base) for base in reversed(self.node.seq))
-            return hash(complement_seq)
-        else:
-            return hash(self.node.seq)
-#        return hash(self.node) + hash(self.strand)
+        return hash(self.node) + hash(self.strand)
+        #if self.strand == '-':
+        #    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+        #    complement_seq =  "".join(complement.get(base, base) for base in reversed(self.node.seq))
+        #    return hash(complement_seq)
+        #else:
+        #    return hash(self.node.seq)
 
 
 class Slice:

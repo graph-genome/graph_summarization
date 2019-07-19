@@ -57,7 +57,7 @@ class DAGify:
         candidate_path_flag = False
 
         while i > 0 and j > 0:
-            if s1[i-1].node == s2.nodes[j-1]:
+            if s1[i-1].node.node.id == s2.nodes[j-1].node.id:
                 prev_paths = s1[i-1].paths
                 prev_paths.append(s2)
                 candidate_paths = s1[i-1].candidate_paths
@@ -99,6 +99,7 @@ class DAGify:
             j -= 1
 
         index.reverse()
+        print(index)
 
         return index
 

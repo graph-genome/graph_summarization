@@ -2,7 +2,7 @@ import unittest
 import os
 from src.gfa import GFA
 from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError, \
-    Path, SlicedGraph
+    Path, SlicedGraph, NodeTraversal
 from src.sort import DAGify
 
 def G(rep):
@@ -169,14 +169,33 @@ class DAGifyTest(unittest.TestCase):
         graph = dagify.to_graph(profile)
         self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
 
-#    @unittest.skip("Inversion is unsupported")
     def test_inversion(self):
         gfa = GFA.load_from_gfa("../test/inversion.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
-        self.assertEqual(graph, [])
+        x, y = Path("x"), Path("y")
+        slices = SlicedGraph.load_from_slices([
+            Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
+            Slice([NodeTraversal(Node('A', [x]), "+")]),  # Buggy?
+            Slice([NodeTraversal(Node('G', [x]), "+"), NodeTraversal(Node("G", [y]), "-")]),  # Buggy?
+            Slice([NodeTraversal(Node("T", [x]), "+")]),
+            Slice([NodeTraversal(Node('T', [y]), "+")])
+        ], [x, y])
+#        internal_slice = [NodeTraversal(Node("T", [x]), "+"), NodeTraversal(Node("G", [y]), "-")]
+#        self.assertEqual(graph, [['CAAATAAG', {'x', 'y'}], ['A', {'x'}], ['G', {'x'}], internal_slice, ['T', {'y'}, '', {'x'}]])
+        self.assertEqual(graph, slices)
+
+    @unittest.skip("Inversion is unsupported")
+    def test_inversion2(self):
+        gfa = GFA.load_from_gfa("../test/inversion2.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(graph, [['CAAATAAG', {'x', 'y'}], ['A', {'x'}], ['GG', {'x'}], ['CC', {'y'}, 'TTG', {'x'}], ['T', {'y'}, '', {'x'}]])
+
 
     @unittest.skip("Inversion is unsupported")
     def test_nested_inversion(self):
@@ -187,14 +206,21 @@ class DAGifyTest(unittest.TestCase):
         graph = dagify.to_graph(profile)
         self.assertEqual(graph, [])
 
-    # @unittest.skip("Inversion is unsupported")
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
-        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'GT', {y}], ['G', {x, y}]])
+        x,y = Path("x"), Path("y")
+        slices = SlicedGraph.load_from_slices([
+            Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
+            Slice([NodeTraversal(Node("AC", [x]), "+"), NodeTraversal(Node("AC", [y]), "-")]),
+            Slice([NodeTraversal(Node('G', [x,y]), "+")])
+        ], [x, y])
+        print(slices)
+        print(graph)
+        self.assertEqual(graph, slices)
 
 
 location_of_xg = "../test/xg"
