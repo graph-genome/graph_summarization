@@ -125,9 +125,9 @@ class Path:
     was sequenced.  A path visits a series of nodes and the ordered concatenation of the node
     sequences is the accession's genome.  Create Paths first from accession names, then append
     them to Nodes to link together."""
-    def __init__(self, accession: str):
+    def __init__(self, accession: str, nodes = []):
         self.accession = accession  # one path per accessions
-        self.nodes = [] # List[NodeTraversal]
+        self.nodes = nodes # List[NodeTraversal]
         self.position_checkpoints = {}  # TODO: currently not used
 
     def __getitem__(self, path_index):
@@ -150,6 +150,9 @@ class Path:
         node.paths.add(PathIndex(self, len(self.nodes)-1))  # already appended node
         return node
 
+    def name(self):
+        return self.accession
+
     def to_gfa(self):
         return '\t'.join(['P', self.accession, "+,".join([x.node.name + x.strand for x in self.nodes]) + "+", ",".join(['*' for x in self.nodes])])
 
@@ -165,7 +168,7 @@ class PathIndex:
         return repr(self.path.accession)
 
     def __eq__(self, other):
-        if self.path.accession == other.path.accession and self.index == other.index:
+        if self.path.accession == other.path.accession: # and self.index == other.index:
             return True
         else:
             return False
@@ -174,7 +177,7 @@ class PathIndex:
         return self.path.accession < other.path.accession
 
     def __hash__(self):
-        return hash(self.path.accession) * (self.index if self.index else 1)
+        return hash(self.path.accession)  # * (self.index if self.index else 1)
 
 
 class NodeTraversal:
@@ -184,7 +187,15 @@ class NodeTraversal:
         self.strand = strand  # TODO: make this required
 
     def __repr__(self):
-        return self.node.seq
+        if self.strand == '+':
+            return self.node.seq
+        else:
+            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+            return "".join(complement.get(base, base) for base in reversed(self.node.seq))
+
+
+    def __eq__(self, other):
+        return self.node.id == other.node.id and self.strand == other.strand
 
 
 class Graph:
@@ -266,7 +277,7 @@ class SlicedGraph(Graph):
         g = SlicedGraph([])
         g.paths = graph.paths  # shallow copy all relevant fields
         g.nodes = graph.nodes
-        g.compute_slices()
+        g.compute_slices_by_dagify()
         return g
 
     def compute_slices(self):
@@ -279,6 +290,18 @@ class SlicedGraph(Graph):
             self.slices.append(Slice([node]))
         return self
 
+    def compute_slices_by_dagify(self):
+        """This method uses DAGify algorithm to compute slices."""
+        from src.sort import DAGify  # help avoid circular import
+
+        if not self.paths:
+            return self
+        dagify = DAGify(self.paths)
+        profile = dagify.recursive_merge(0)
+        slices = dagify.to_slices(profile)
+        self.slices = slices
+        return self
+
     @staticmethod
     def build(cmd):
         """This factory uses existing slice declarations to build a graph with Paths populated in the order
@@ -289,6 +312,7 @@ class SlicedGraph(Graph):
         # preemptively grab all the path names from every odd list entry
         paths = {key for sl in cmd for i in range(0, len(sl), 2) for key in sl[i + 1]}
         graph = SlicedGraph(paths)
+        graph.slices = []
         for sl in cmd:
             current_slice = []
             if isinstance(sl, Slice):

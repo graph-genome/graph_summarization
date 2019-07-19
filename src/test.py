@@ -3,7 +3,7 @@ import os
 from src.gfa import GFA
 from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError, \
     Path, SlicedGraph
-
+from src.sort import DAGify
 
 def G(rep):
     """Short hand for Graph construction that returns a slice"""
@@ -107,16 +107,106 @@ WD = WD[0:-4]
 
 # Define several test example directories
 PATH_TO_TEST_DATA = pf(WD, "test/")
+x,y,z,a = 'x', 'y', 'z', 'a'
+
+class DAGifyTest(unittest.TestCase):
+    """ test class of sort.py
+    """
+
+
+    def test_dagify(self):
+        gfa = GFA.load_from_gfa("../test/test.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile = dagify.recursive_merge(0)
+        graph = dagify.to_graph(profile)
+#        x, y, z = graph.paths['x'], graph.paths['y'], graph.paths['z']
+
+        self.assertEqual([['CAAATAAG', {x,y,z}], ['A', {y,z}, 'G', {x}], ['C', {x,y,z}], ['TTG', {x,y,z}], ['A', {z}, 'G', {x,y}], ['AAATTTTCTGGAGTTCTAT', {x,y,z}], ['T', {x,y,z}], ['ATAT', {x,y,z}], ['T', {x,y,z}], ['CCAACTCTCTG', {x,y,z}]], graph)
+
+    def test_dagify2(self):
+        gfa = GFA.load_from_gfa("../test/test2.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile = dagify.recursive_merge(0)
+        graph = dagify.to_graph(profile)
+        x,y,z,a = 'x', 'y', 'z', 'a'
+        self.assertEqual([['CAAATAAG', {x, y, z}], ['G', {x}, 'A', {y, z}], ['C', {x, y}, 'T', {z}], ['TTG', {x, y, z}], ['G', {x, y}, 'A', {a, z}], ['AAATTTTCTGGAGTTCTAT', {a, x, y, z}], ['A', {a, z}, 'T', {x, y}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]], graph)
+
+    def test_dagify3(self):
+        gfa = GFA.load_from_gfa("../test/test3.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(rep_count, 1)
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['CCAACTCTCTG', {y}, 'G', {x}], ['C', {x, y}], ['TTG', {x, y}], ['G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y}], ['T', {x, y}], ['ATAT', {x, y}], ['T', {x, y}], ['CCAACTCTCTG', {x, y}]])
+
+    def test_dagify_altpath(self):
+        gfa = GFA.load_from_gfa("../test/alternate_paths.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(rep_count, 1)
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['A', {x}, '', {y}], ['G', {x, y}], ['A', {y}, '', {x}], ['T', {x, y}]])
+
+    def test_dagify_dup(self):
+        gfa = GFA.load_from_gfa("../test/duplicate.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(rep_count, 2)
+        self.assertEqual(graph, [['CAAATAAG', {x, y}], ['', {x}, 'A', {y}], ['', {x}, 'G', {y}], ['A', {x, y}], ['G', {x, y}], ['T', {x, y}]])
+
+
+    def test_unresolved_repreat(self):
+        gfa = GFA.load_from_gfa("../test/unresolved_repeat.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
+
+    @unittest.skip("Inversion is unsupported")
+    def test_inversion(self):
+        gfa = GFA.load_from_gfa("../test/inversion.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(graph, [])
+
+    @unittest.skip("Inversion is unsupported")
+    def test_nested_inversion(self):
+        gfa = GFA.load_from_gfa("../test/nested_inv.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(graph, [])
+
+    @unittest.skip("Inversion is unsupported")
+    def test_simple_inversion(self):
+        gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
+        paths = gfa.to_paths
+        dagify = DAGify(paths)
+        profile, rep_count = dagify.search_for_minimizing_replications()
+        graph = dagify.to_graph(profile)
+        self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
+
+
+location_of_xg = "../test/xg"
 
 
 class GFATest(unittest.TestCase):
     """ test class of gfa.py
     """
 
-    @unittest.expectedFailure
+    @unittest.skipIf(not os.path.isfile(location_of_xg), "XG binary is not found.")
     def test_gfa(self):
         self.maxDiff = None
-        location_of_xg = "../test/xg"
         graph = GFA.load_from_gfa("../test/test.gfa")
         graph.save_as_xg("../test/test.xg", location_of_xg)
         graph2 = GFA.load_from_xg("../test/test.xg", location_of_xg)
@@ -129,6 +219,15 @@ class GFATest(unittest.TestCase):
         self.assertEqual(len(graph.nodes), 15)
 
     def test_gfa_to_sliced_graph(self):
+        graph, gfa = self.make_graph_from_gfa()
+        slices = SlicedGraph.from_graph(graph)
+        x = 'x'
+        y = 'y'
+        z = 'z'
+        print(slices)
+        self.assertEqual(slices, [['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}], ['C', {x, y, z}], ['TTG', {x, y, z}], ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]])
+
+    def test_gfa_to_sliced_graph_via_dagify(self):
         #TODO: this is currently close but not quite there.
         # Slices must be fully defined in SlicedGraph.compute_slices()
         graph, gfa = self.make_graph_from_gfa()
@@ -156,11 +255,11 @@ class GFATest(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_load_gfa_via_xg(self):
-        location_of_xg = "../test/xg"
         graph = GFA.load_from_gfa("../test/test.gfa")
         graph.save_as_xg("../test/test.xg", location_of_xg)
         graph2 = GFA.load_from_xg("../test/test.xg", location_of_xg)
         graph = graph2.to_graph
+        graph = SlicedGraph.from_graph(graph)
         x = 'x'
         y = 'y'
         z = 'z'
