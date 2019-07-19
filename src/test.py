@@ -212,14 +212,13 @@ class DAGifyTest(unittest.TestCase):
         x, y, z = Path("x"), Path("y"), Path("z")
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('T', [x, y, z]), "+")]),
-            Slice([NodeTraversal(Node('CAAATAAG', [x]), "+"), NodeTraversal(Node('CTTATTTG', [z, y]))]),
-            Slice([NodeTraversal(Node('T', [z]), "+"), NodeTraversal(Node("A", [x]), "-"), NodeTraversal(Node("", [y]))]),
-            Slice([NodeTraversal(Node("C", [x]), "+"), NodeTraversal(Node('C', [x,y]), "-")]),
-            Slice([NodeTraversal(Node("TTG", [x]), "+"), NodeTraversal(Node('', [y]))])
+            Slice([NodeTraversal(Node('CAAATAAG', [x]), "-"), NodeTraversal(Node('CAAATAAG', [y,z]))]),
+            Slice([NodeTraversal(Node('A', [z]), "-"), NodeTraversal(Node("A", [x]), "+"), NodeTraversal(Node("", [y]))]),
+            Slice([NodeTraversal(Node("G", [x]), "-"), NodeTraversal(Node('G', [x, y]), "+")]),
+            Slice([NodeTraversal(Node("A", [y]), "+"), NodeTraversal(Node('', [x, z]))]),
+            Slice([NodeTraversal(Node("T", [y, z]), "-"), NodeTraversal(Node('T', [x]), "+")])
         ], [x, y])
         self.assertEqual(graph, slices)
-
-        # [['T', {'z'}, 'A', {'x'}, '', {'y'}], ['C', {'z'}, 'G', {'x', 'y'}], ['A', {'y'}, '', {'z', 'x'}], ['A', {'z', 'y'}, 'T', {'x'}]])
 
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
@@ -231,7 +230,7 @@ class DAGifyTest(unittest.TestCase):
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
             Slice([NodeTraversal(Node("AC", [x]), "+"), NodeTraversal(Node("AC", [y]), "-")]),
-            Slice([NodeTraversal(Node('G', [x,y]), "+")])
+            Slice([NodeTraversal(Node('G', [x, y]), "+")])
         ], [x, y])
         self.assertEqual(graph, slices)
 
