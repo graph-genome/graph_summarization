@@ -36,19 +36,20 @@ class GraphTest(unittest.TestCase):
         # IMPORTANT: Never reuse Paths: Paths must be created fresh for each graph
         a, b, c, d, e = Path('a'), Path('b'), Path('c'), Path('d'), Path('e')
         paths = [a, b, c, d, e]
-        factory_input = [Slice([Node('ACGT', {a,b,c,d})]),
-                       Slice([Node('C',{a,b,d}),Node('T', {c})]),
-                       Slice([Node('GGA',{a,b,c,d})]),
-                       Slice([Node('C',{a,b,d}),Node('', {c})]),
-                       Slice([Node('AGTACG',{a,b,c}), Node('CGTACT',{d})]),
-                       Slice([Node('TTG',{a,b,c,d})]),
-                       Slice([Node('A', {a, b}), Node('C', {d, e}), Node('T', {c})]),  # third allele
-                       Slice([Node('GG', {a, b}), Node('TT', {c, d})]),  # equal size nodes
-                       Slice([Node('C', {a, b, c, e}), Node('T', {d})]),
-                       Slice([Node('C', {a, b, e}), Node('T', {c, d})]),
-                       Slice([Node('C', {a, b, c}), Node('T', {d})]),
-                       Slice([Node('TATA', {a, b, c, d})])  # anchor
-                          ]
+        factory_input = [
+            Slice([NodeTraversal(Node('ACGT', {a,b,c,d}))]),
+            Slice([NodeTraversal(Node('C',{a,b,d})),NodeTraversal(Node('T', {c}))]),
+            Slice([NodeTraversal(Node('GGA',{a,b,c,d}))]),
+            Slice([NodeTraversal(Node('C',{a,b,d})),NodeTraversal(Node('', {c}))]),
+            Slice([NodeTraversal(Node('AGTACG',{a,b,c})), NodeTraversal(Node('CGTACT',{d}))]),
+            Slice([NodeTraversal(Node('TTG',{a,b,c,d}))]),
+            Slice([NodeTraversal(Node('A', {a, b})), NodeTraversal(Node('C', {d, e})), NodeTraversal(Node('T', {c}))]),  # third allele
+            Slice([NodeTraversal(Node('GG', {a, b})), NodeTraversal(Node('TT', {c, d}))]),  # equal size nodes
+            Slice([NodeTraversal(Node('C', {a, b, c, e})), NodeTraversal(Node('T', {d}))]),
+            Slice([NodeTraversal(Node('C', {a, b, e})), NodeTraversal(Node('T', {c, d}))]),
+            Slice([NodeTraversal(Node('C', {a, b, c})), NodeTraversal(Node('T', {d}))]),
+            Slice([NodeTraversal(Node('TATA', {a, b, c, d}))])  # anchor
+                        ]
 
         base_graph = SlicedGraph.load_from_slices(factory_input, paths)
         return base_graph
@@ -57,8 +58,8 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(Node('A', {}),Node('A', {}))
         self.assertEqual(Node('A', {Path('x')}),Node('A', {Path('x')}))
         self.assertEqual(Node('A', {Path('x'),Path('y')}),Node('A', {Path('x'),Path('y')}))
-        self.assertEqual(Slice([Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')})]),
-                         Slice([Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')})]))
+        self.assertEqual(Slice([NodeTraversal(Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')}))]),
+                         Slice([NodeTraversal(Node('ACGT', {Path('a'), Path('b'), Path('c'), Path('d')}))]))
         self.assertEqual(SlicedGraph.build([['ACGT', {a, b, c, d}]]), SlicedGraph.build([['ACGT', {a, b, c, d}]]))
 
     def test_graph_factory(self):
@@ -69,10 +70,10 @@ class GraphTest(unittest.TestCase):
         g_double = SlicedGraph.build(eval(str(base_graph)))
         # WARN: Never compare two string literals: could be order sensitive, one object must be Graph
         #str(g_double) == str(base_graph)
-        assert g_double == base_graph, repr(g_double) + '\n' + repr(base_graph)
         assert g1 == base_graph, repr(g1) + '\n' + repr(base_graph)
         assert g_double == self.factory_input
         assert g_double == str(self.factory_input)
+        assert g_double == base_graph, repr(g_double) + '\n' + repr(base_graph)
 
     def test_G(self):
         with self.assertRaises(ValueError):
@@ -178,33 +179,47 @@ class DAGifyTest(unittest.TestCase):
         x, y = Path("x"), Path("y")
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
-            Slice([NodeTraversal(Node('A', [x]), "+")]),  # Buggy?
-            Slice([NodeTraversal(Node('G', [x]), "+"), NodeTraversal(Node("G", [y]), "-")]),  # Buggy?
-            Slice([NodeTraversal(Node("T", [x]), "+")]),
-            Slice([NodeTraversal(Node('T', [y]), "+")])
+            Slice([NodeTraversal(Node('G', [y]), "-"), NodeTraversal(Node('', [x]))]),
+            Slice([NodeTraversal(Node('A', [x]), "+"), NodeTraversal(Node("A", [y]), "-")]),
+            Slice([NodeTraversal(Node("G", [x]), "+"), NodeTraversal(Node('', [y]))]),
+            Slice([NodeTraversal(Node("T", [x]), "+"), NodeTraversal(Node('', [y]))])
         ], [x, y])
-#        internal_slice = [NodeTraversal(Node("T", [x]), "+"), NodeTraversal(Node("G", [y]), "-")]
-#        self.assertEqual(graph, [['CAAATAAG', {'x', 'y'}], ['A', {'x'}], ['G', {'x'}], internal_slice, ['T', {'y'}, '', {'x'}]])
         self.assertEqual(graph, slices)
 
-    @unittest.skip("Inversion is unsupported")
+#    @unittest.skip("Inversion is unsupported")
     def test_inversion2(self):
         gfa = GFA.load_from_gfa("../test/inversion2.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
-        self.assertEqual(graph, [['CAAATAAG', {'x', 'y'}], ['A', {'x'}], ['GG', {'x'}], ['CC', {'y'}, 'TTG', {'x'}], ['T', {'y'}, '', {'x'}]])
+        x, y = Path("x"), Path("y")
+        slices = SlicedGraph.load_from_slices([
+            Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
+            Slice([NodeTraversal(Node('GG', [y]), "-"), NodeTraversal(Node('', [x]))]),
+            Slice([NodeTraversal(Node('A', [x]), "+"), NodeTraversal(Node("A", [y]), "-")]),
+            Slice([NodeTraversal(Node("GG", [x]), "+"), NodeTraversal(Node('', [y]))]),
+            Slice([NodeTraversal(Node("TTG", [x]), "+"), NodeTraversal(Node('', [y]))])
+        ], [x, y])
+        self.assertEqual(graph, slices)
 
-
-    @unittest.skip("Inversion is unsupported")
     def test_nested_inversion(self):
         gfa = GFA.load_from_gfa("../test/nested_inv.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
         graph = dagify.to_graph(profile)
-        self.assertEqual(graph, [])
+        x, y, z = Path("x"), Path("y"), Path("z")
+        slices = SlicedGraph.load_from_slices([
+            Slice([NodeTraversal(Node('T', [x, y, z]), "+")]),
+            Slice([NodeTraversal(Node('CAAATAAG', [x]), "+"), NodeTraversal(Node('CTTATTTG', [z, y]))]),
+            Slice([NodeTraversal(Node('T', [z]), "+"), NodeTraversal(Node("A", [x]), "-"), NodeTraversal(Node("", [y]))]),
+            Slice([NodeTraversal(Node("C", [x]), "+"), NodeTraversal(Node('C', [x,y]), "-")]),
+            Slice([NodeTraversal(Node("TTG", [x]), "+"), NodeTraversal(Node('', [y]))])
+        ], [x, y])
+        self.assertEqual(graph, slices)
+
+        # [['T', {'z'}, 'A', {'x'}, '', {'y'}], ['C', {'z'}, 'G', {'x', 'y'}], ['A', {'y'}, '', {'z', 'x'}], ['A', {'z', 'y'}, 'T', {'x'}]])
 
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa("../test/simple_inv.gfa")
@@ -218,8 +233,6 @@ class DAGifyTest(unittest.TestCase):
             Slice([NodeTraversal(Node("AC", [x]), "+"), NodeTraversal(Node("AC", [y]), "-")]),
             Slice([NodeTraversal(Node('G', [x,y]), "+")])
         ], [x, y])
-        print(slices)
-        print(graph)
         self.assertEqual(graph, slices)
 
 
