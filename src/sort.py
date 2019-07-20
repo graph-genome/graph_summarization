@@ -12,6 +12,7 @@ class Profile:
     def __repr__(self):
         return "["+str(self.node.node) + str(self.paths)+":"+str(self.candidate_paths) +"]"
 
+
 class DAGify:
     def __init__(self, paths: List[Path], nodes={}):
         """
@@ -138,11 +139,11 @@ class DAGify:
         if len(current_slice.nodes) > 0:
             all_path_set = set([x for x in current_paths])
             if profile[-1].candidate_paths - all_path_set != set():
-                current_slice.add_node(Node("", prof.candidate_paths - all_path_set))
+                current_slice.add_node(Node("", profile[-1].candidate_paths - all_path_set))
             factory_input.append(current_slice)
         return factory_input
 
-    def to_graph(self, profile: List[Profile]):
-        factory_input = self.to_slices(profile)
-        base_graph = SlicedGraph.load_from_slices(factory_input, self.paths)
-        return base_graph
+    #def to_graph(self, profile: List[Profile]):
+    #    factory_input = self.to_slices(profile)
+    #    base_graph = SlicedGraph.load_from_slices(factory_input, self.paths)
+    #    return base_graph
