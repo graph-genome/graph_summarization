@@ -268,9 +268,6 @@ class Graph:
         return SlicedGraph.from_graph(self)
 
 
-from sort import DAGify
-
-
 class SlicedGraph(Graph):
     def __init__(self, paths):
         super(SlicedGraph, self).__init__(paths)
@@ -312,6 +309,8 @@ class SlicedGraph(Graph):
 
     def compute_slices_by_dagify(self):
         """This method uses DAGify algorithm to compute slices."""
+        from src.sort import DAGify  # help avoid circular import
+
         if not self.paths:
             return self
         dagify = DAGify(self.paths)

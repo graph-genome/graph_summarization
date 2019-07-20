@@ -257,8 +257,6 @@ class GFATest(unittest.TestCase):
         self.assertEqual(len(graph.nodes), 15)
 
     def test_gfa_to_sliced_graph(self):
-        #TODO: this is currently close but not quite there.
-        # Slices must be fully defined in SlicedGraph.compute_slices()
         graph, gfa = self.make_graph_from_gfa()
         slices = SlicedGraph.from_graph(graph)
         x = 'x'
