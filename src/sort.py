@@ -1,6 +1,9 @@
-from src.graph import *
-
+import sys
 import dataclasses
+from typing import List
+
+from src.graph import NodeTraversal, Path, Slice, Node, SlicedGraph
+
 
 @dataclasses.dataclass
 class Profile:
@@ -14,11 +17,12 @@ class Profile:
 
 
 class DAGify:
-    def __init__(self, paths: List[Path], nodes={}):
+    def __init__(self, paths: List[Path], nodes=None):
         """
-
         :type paths: List[Path]
         """
+        if nodes is None:
+            nodes = {}
         self.paths = paths
         self.nodes = nodes
 
@@ -103,7 +107,7 @@ class DAGify:
 
         return index
 
-    def to_slices(self, profile: List[Profile]) -> List[Path]:
+    def to_slices(self, profile: List[Profile]) -> List[Slice]:
         factory_input = []
         current_slice = Slice([])
         current_paths = []
@@ -142,8 +146,3 @@ class DAGify:
                 current_slice.add_node(Node("", profile[-1].candidate_paths - all_path_set))
             factory_input.append(current_slice)
         return factory_input
-
-    #def to_graph(self, profile: List[Profile]):
-    #    factory_input = self.to_slices(profile)
-    #    base_graph = SlicedGraph.load_from_slices(factory_input, self.paths)
-    #    return base_graph
