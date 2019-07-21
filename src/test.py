@@ -119,7 +119,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile = dagify.recursive_merge(0)
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
 #        x, y, z = graph.paths['x'], graph.paths['y'], graph.paths['z']
 
         self.assertEqual([['CAAATAAG', {x,y,z}], ['A', {y,z}, 'G', {x}], ['C', {x,y,z}], ['TTG', {x,y,z}], ['A', {z}, 'G', {x,y}], ['AAATTTTCTGGAGTTCTAT', {x,y,z}], ['T', {x,y,z}], ['ATAT', {x,y,z}], ['T', {x,y,z}], ['CCAACTCTCTG', {x,y,z}]], graph)
@@ -129,7 +129,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile = dagify.recursive_merge(0)
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         x,y,z,a = 'x', 'y', 'z', 'a'
         self.assertEqual([['CAAATAAG', {x, y, z}], ['G', {x}, 'A', {y, z}], ['C', {x, y}, 'T', {z}], ['TTG', {x, y, z}], ['G', {x, y}, 'A', {a, z}], ['AAATTTTCTGGAGTTCTAT', {a, x, y, z}], ['A', {a, z}, 'T', {x, y}], ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]], graph)
 
@@ -138,7 +138,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual(rep_count, 1)
         self.assertEqual(graph, [['CAAATAAG', {x, y}], ['CCAACTCTCTG', {y}, 'G', {x}], ['C', {x, y}], ['TTG', {x, y}], ['G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y}], ['T', {x, y}], ['ATAT', {x, y}], ['T', {x, y}], ['CCAACTCTCTG', {x, y}]])
 
@@ -147,7 +147,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual(rep_count, 1)
         self.assertEqual(graph, [['CAAATAAG', {x, y}], ['A', {x}, '', {y}], ['G', {x, y}], ['A', {y}, '', {x}], ['T', {x, y}]])
 
@@ -156,7 +156,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual(rep_count, 2)
         self.assertEqual(graph, [['CAAATAAG', {x, y}], ['', {x}, 'A', {y}], ['', {x}, 'G', {y}], ['A', {x, y}], ['G', {x, y}], ['T', {x, y}]])
 
@@ -166,7 +166,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
 
     @unittest.skip("Inversion is unsupported")
@@ -175,7 +175,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual(graph, [])
 
     @unittest.skip("Inversion is unsupported")
@@ -184,7 +184,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual(graph, [])
 
     @unittest.skip("Inversion is unsupported")
@@ -193,7 +193,7 @@ class DAGifyTest(unittest.TestCase):
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
 
 
