@@ -118,18 +118,18 @@ class GFA:
         node_hash = {}
         for segment in self.gfa.segments:
             node_id = segment.name + "+"
-            node = Node(segment.sequence, [])
+            node = Node(segment.sequence)
             node_hash[node_id] = node
 
             node_id = segment.name + "-"
-            node = Node(segment.sequence, [])
+            node = Node(segment.sequence)
             node_hash[node_id] = node
 
         paths = []
         for path in self.gfa.paths:
             nodes = []
             for node in path.segment_names:
-                node_index = NodeTraversal(Node(node_hash[node.name + node.orient].seq, [], node.name), node.orient)
+                node_index = NodeTraversal(Node(node_hash[node.name + node.orient].seq, node.name), node.orient)
                 nodes.append(node_index)
             paths.append(Path(path.name, nodes))
 
