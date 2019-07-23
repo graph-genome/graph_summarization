@@ -2,6 +2,8 @@ from typing import List, Iterable
 from itertools import zip_longest
 import pickle
 import sys
+from uuid import uuid1
+
 from django.db import models
 from Graph.utils import keydefaultdict
 

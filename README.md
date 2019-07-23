@@ -14,9 +14,16 @@ Ggfapy etc. does not have an anaconda package, so it's necessary to use pip:
 `pip install -r requirements.txt`  
 
 
-**IDE:**  Pycharm Professional 2019.1  
+**IDE:**  Pycharm Professional 2019.1 available for free for academics. 
 * Travis CI - automatically runs tests on master and development branches
 * Jupyter Notebook - run from the same Anaconda environment.  Notebooks are useful for prototyping, mature code gets moved to .py files for reuse.  They can be matured into a user manual.
+
+**Django:** This project uses django for its relational database.  db.sqlite3 is not included in the repo.  To setup Django database file run  
+```
+python manage.py migrate
+python manage.py createsuperuser
+```
+
 
 #### Branches
 **master** - should always run tests without errors.  This is currently our development branch until our first release.  Only use Pull Requests to update master.  We will do code review on master.  

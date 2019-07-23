@@ -2,7 +2,7 @@ import sys
 import dataclasses
 from typing import List
 
-from src.graph import NodeTraversal, Path, Slice, Node, SlicedGraph
+from Graph.models import NodeTraversal, Path, Slice, Node, SlicedGraph
 
 
 @dataclasses.dataclass
