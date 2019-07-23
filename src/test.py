@@ -12,7 +12,7 @@ WD = os.path.dirname(__file__)
 # hopefully Travis eats this
 WD = WD[0:-4]
 # Define several test example directories
-PATH_TO_TEST_DATA = pf(WD, "test/")
+PATH_TO_TEST_DATA = join(WD, "test/")
 
 def G(rep):
     """Short hand for Graph construction that returns a slice"""
@@ -87,9 +87,6 @@ class GraphTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             G([['C', {Path('a'), Path('b')}], ['T', {Path('12'), Path('16')}]])
 
-
-# Define several test example directories
-PATH_TO_TEST_DATA = pf(WD, "test/")
 x,y,z,a = 'x', 'y', 'z', 'a'
 
 class DAGifyTest(unittest.TestCase):
