@@ -2,10 +2,8 @@ from collections import defaultdict
 from typing import List, NamedTuple
 from itertools import tee
 import gfapy
-import pickle
 import subprocess
 import io
-from IPython import embed
 import os
 import tempfile
 from src.graph import *

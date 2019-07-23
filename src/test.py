@@ -233,7 +233,7 @@ class GFATest(unittest.TestCase):
         graph = gfa.to_graph
         self.assertIsNotNone(graph)
 
-    @unittest.expectedFailure
+    @unittest.skipIf(not os.path.isfile(location_of_xg), "XG binary is not found.")
     def test_load_gfa_via_xg(self):
         graph = GFA.load_from_gfa(PATH_TO_TEST_DATA + "/test.gfa")
         graph.save_as_xg(PATH_TO_TEST_DATA + "/test.xg", location_of_xg)
