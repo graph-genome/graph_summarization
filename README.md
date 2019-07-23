@@ -3,8 +3,8 @@
 # vgbrowser
 Browser for Graph Genomes built with VG.  Provides visualization for variation within a species of plant or animal. Designed to scale up to thousands of specimens and provide useful visualizations.
 
-**Backend:** Toshiyuki Yokoyama
-**Client-Server-Communication and Drawing:** Simon Heumos
+**Backend:** Toshiyuki Yokoyama \
+**Client-Server-Communication and Drawing:** Simon Heumos \
 **Algorithms and Design:** Josiah Seaman
 
 
