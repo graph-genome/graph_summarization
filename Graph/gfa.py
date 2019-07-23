@@ -6,7 +6,7 @@ import subprocess
 import io
 import os
 import tempfile
-from src.graph import *
+from Graph.models import *
 
 
 def pairwise(iterable):

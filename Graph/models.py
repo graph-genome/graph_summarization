@@ -2,9 +2,9 @@ from typing import List, Iterable
 from itertools import zip_longest
 import pickle
 import sys
-from uuid import uuid1
+from django.db import models
+from Graph.utils import keydefaultdict
 
-from src.utils import keydefaultdict
 
 
 class NoAnchorError(ValueError):
@@ -17,7 +17,10 @@ class NodeMissingError(ValueError):
     pass
 
 
-class Node:
+class Node:#(models.Model):
+    # seq = models.CharField(max_length=255, blank=True)
+    # paths = models.ManyToOneRel(Path)
+
     def __init__(self, seq: str, paths: 'Iterable[Path]', id: str = None):
         assert isinstance(seq, str), seq
         self.id = id if id else str(uuid1())
@@ -222,7 +225,7 @@ class Graph:
         self = pickle.load(file)
 
     def load_from_xg(self, file: str, xg_bin: str):
-        from src.gfa import GFA
+        from Graph.gfa import GFA
         gfa = GFA.load_from_xg(file, xg_bin)
         self = gfa.to_graph()
 
@@ -230,7 +233,7 @@ class Graph:
         pickle.dump(self, file)
 
     def save_as_xg(self, file: str, xg_bin: str):
-        from src.gfa import GFA
+        from Graph.gfa import GFA
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
 
@@ -292,7 +295,7 @@ class SlicedGraph(Graph):
 
     def compute_slices_by_dagify(self):
         """This method uses DAGify algorithm to compute slices."""
-        from src.sort import DAGify  # help avoid circular import
+        from Graph.sort import DAGify  # help avoid circular import
 
         if not self.paths:
             return self
@@ -336,12 +339,3 @@ class SlicedGraph(Graph):
         graph = cls(paths)
         graph.slices = slices
         return graph
-
-
-if __name__ == "__main__":
-    location_of_xg = sys.argv[0]
-
-    ### Usage  # Unfinished
-    # graph = Graph.load_from_xg('../test/test.xg', "../test/xg")
-    # graph.save_as_pickle()
-

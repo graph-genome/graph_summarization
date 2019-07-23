@@ -1,10 +1,9 @@
 import unittest
 import os
 from os.path import join
-from src.gfa import GFA
-from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError, \
-    Path, SlicedGraph
-from src.sort import DAGify
+from Graph.gfa import GFA
+from Graph.models import Graph, Slice, Node, Path, SlicedGraph
+from Graph.sort import DAGify
 
 # Define the working directory
 WD = os.path.dirname(__file__)
@@ -12,7 +11,9 @@ WD = os.path.dirname(__file__)
 # hopefully Travis eats this
 WD = WD[0:-4]
 # Define several test example directories
-PATH_TO_TEST_DATA = join(WD, "test/")
+PATH_TO_TEST_DATA = join(WD, "test_data/")
+location_of_xg = "../test_data/xg"
+
 
 def G(rep):
     """Short hand for Graph construction that returns a slice"""
@@ -177,7 +178,6 @@ class DAGifyTest(unittest.TestCase):
         self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
 
 
-location_of_xg = "../test/xg"
 
 
 class GFATest(unittest.TestCase):
