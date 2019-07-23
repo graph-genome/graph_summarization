@@ -1,9 +1,18 @@
 import unittest
 import os
+from os.path import join
 from src.gfa import GFA
 from src.graph import Graph, Slice, Node, NoAnchorError, PathOverlapError, NoOverlapError, NodeMissingError, \
     Path, SlicedGraph
 from src.sort import DAGify
+
+# Define the working directory
+WD = os.path.dirname(__file__)
+# as our current setup stores the test data in an extra folder this is a dirty workaround
+# hopefully Travis eats this
+WD = WD[0:-4]
+# Define several test example directories
+PATH_TO_TEST_DATA = pf(WD, "test/")
 
 def G(rep):
     """Short hand for Graph construction that returns a slice"""
@@ -77,21 +86,6 @@ class GraphTest(unittest.TestCase):
     def test_G(self):
         with self.assertRaises(ValueError):
             G([['C', {Path('a'), Path('b')}], ['T', {Path('12'), Path('16')}]])
-
-
-# function to get the path
-def pf(wd, path):
-    return os.path.join(wd, path)
-
-# Define the working directory
-WD = os.path.dirname(__file__)
-# as our current setup stores the test data in an extra folder this is a dirty workaround
-# hopefully Travis eats this
-WD = WD[0:-4]
-
-
-# Define several test example directories
-PATH_TO_TEST_DATA = pf(WD, "test/")
 
 
 # function to get the path
