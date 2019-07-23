@@ -88,17 +88,6 @@ class GraphTest(unittest.TestCase):
             G([['C', {Path('a'), Path('b')}], ['T', {Path('12'), Path('16')}]])
 
 
-# function to get the path
-def pf(wd, path):
-    return os.path.join(wd, path)
-
-# Define the working directory
-WD = os.path.dirname(__file__)
-# as our current setup stores the test data in an extra folder this is a dirty workaround
-# hopefully Travis eats this
-WD = WD[0:-4]
-
-
 # Define several test example directories
 PATH_TO_TEST_DATA = pf(WD, "test/")
 x,y,z,a = 'x', 'y', 'z', 'a'
