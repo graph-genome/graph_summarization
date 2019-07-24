@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/graph-genome/vgbrowser.svg?branch=master)](https://travis-ci.org/graph-genome/vgbrowser)
+[![Build Status](https://travis-ci.org/graph-genome/vgbrowser.svg?branch=i19_haploblocker)](https://travis-ci.org/graph-genome/vgbrowser)
 
 # vgbrowser
 Browser for Graph Genomes built with VG.  Provides visualization for variation within a species of plant or animal. Designed to scale up to thousands of specimens and provide useful visualizations.
