@@ -6,7 +6,7 @@ from uuid import uuid1
 
 from django.db import models
 from Graph.utils import keydefaultdict
-
+from Utils.models import CustomSaveManager
 
 
 class NoAnchorError(ValueError):
@@ -19,16 +19,25 @@ class NodeMissingError(ValueError):
     pass
 
 
+class GraphGenome(models.Model):
+    name = models.CharField(max_length=1000)
+
+
+class DoubleNode():
+    plus = Node
+    minus = Node
+
+    def visitors(self):
+        plus_node_set.union(minus_node_set)
+
+
 class Node(models.Model):
     seq = models.CharField(max_length=255, blank=True)
-    id = models.IntegerField(primary_key=True)
-    # display_name = models.CharField(max_length=255, blank=True)
+    name = models.CharField(primary_key=True)
+    graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
 
-    @classmethod
-    def build(cls, seq: str, paths: 'Iterable[Path]', id: str = None):
-        node = Node.objects.create(seq)
-        for p in paths:
-            NodeTraversal.objects.create(node, path)
+    class Meta:
+        unique_together = ['graph', 'name']
 
     def __len__(self):
         return len(self.paths)
@@ -154,8 +163,14 @@ class Path(models.Model):
     def append_node(self, node: Node, strand: str):
         """This is the preferred way to build a graph in a truly non-linear way.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node (order independent)."""
-        NodeTraversal.objects.create(node, self, strand)
+        NodeTraversal(node, self, strand).save()
         return node
+
+    @classmethod
+    def build(cls, name: str, seq_of_nodes: List[str]):
+        node = Node.objects.create(seq)
+        for p in paths:
+            NodeTraversal.objects.create(node, path)
 
     def name(self):
         return self.accession
@@ -168,10 +183,11 @@ class Path(models.Model):
 
 class NodeTraversal(models.Model):
     """Link from a Path to a Node it is currently traversing.  Includes strand"""
-    node = models.ForeignKey(Node, on_delete=models.CASCADE)
-    path = models.ForeignKey(Path, on_delete=models.CASCADE, help_text='')
-    order = models.AutoField(primary_key=True, help_text='Defines the order a path lists traversals')
+    node = models.ForeignKey(Node, index=True, on_delete=models.CASCADE)
+    path = models.ForeignKey(Path, index=True, on_delete=models.CASCADE, help_text='')
+    order = models.IntegerField(help_text='Defines the order a path lists traversals')
     strand = models.CharField(choices=[('+', '+'),('-', '-')], default='+', max_length=1)
+    objects = CustomSaveManager()
 
     def __repr__(self):
         if self.strand == '+':
@@ -180,9 +196,15 @@ class NodeTraversal(models.Model):
             complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
             return "".join(complement.get(base, base) for base in reversed(self.node.seq))
 
-
     def __eq__(self, other):
         return self.node.id == other.node.id and self.strand == other.strand
+
+    def save(self, **kwargs):
+        """IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
+        or get_or_create"""
+        self.order = self.path.nodetraversal_set.all().order_by('-order').first().order + 1
+        super(NodeTraversal, self).save(**kwargs)
+
 
 
 class Graph:
