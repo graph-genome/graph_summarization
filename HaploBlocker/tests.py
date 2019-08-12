@@ -100,6 +100,8 @@ class HaploTest(unittest.TestCase):
         summary1 = self._test_simple_merge(all_nodes)
         summary2 = self._test_neglect_nodes(summary1)
         summary3 = self._test_split_groups(summary2)
+        bad = summary3[2]
+        print(bad.details())
 
         # test_signatures = get_all_signatures(alleles, individuals)
         # test_individuals = build_individuals(individuals, test_signatures)

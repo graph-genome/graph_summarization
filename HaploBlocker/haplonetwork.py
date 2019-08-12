@@ -2,6 +2,7 @@ from typing import List
 
 import numpy as np
 from collections import defaultdict
+from copy import copy
 import networkx as nx
 import os
 
@@ -55,11 +56,13 @@ class Node:
         return self.ident == -1 and self.start.snp is None and self.end.snp is None
 
     def validate(self):
-        assert self.specimens, "Specimens are empty" + self.details()
+        if not self.specimens:
+            assert self.specimens, "Specimens are empty" + self.details()
         for n in self.upstream:
             for node, weight in n.downstream.items():
-                if not node.is_nothing():
-                    assert weight > 0, n.details()
+                if not node.is_nothing() and weight < 0:
+                    print(n.details())
+                    assert weight > -1, node.details()
         return True
 
     def is_beginning(self) -> bool:
@@ -223,28 +226,32 @@ def split_one_group(prev_node, anchor, next_node):
     """ Called when up.specimens == down.specimens"""
     # Comment: That is actually the case we want to split up to obtain longer blocks later
     # Extension of full windows will take care of potential loss of information later
-    my_specimens = anchor.specimens
+
+    if prev_node is NOTHING_NODE:
+        print("Start")
+    my_specimens = copy(anchor.specimens)
     if prev_node is not NOTHING_NODE:  # normal case
         my_specimens = my_specimens.intersection(prev_node.specimens)
     if next_node is not NOTHING_NODE:  # normal case
         my_specimens = my_specimens.intersection(next_node.specimens)
     if prev_node is NOTHING_NODE and next_node is NOTHING_NODE:  # exceptional: both are nothing node
-        my_specimens = anchor.specimens
+        my_specimens = copy(anchor.specimens)
+        # TODO: why are we removing all specimens that transition to nothing?
         for n in anchor.downstream.keys():
-            if n is not NOTHING_NODE:  # don't remove empty set
+            if n is NOTHING_NODE:  # remove dead leads
                 my_specimens -= n.specimens
         for n in anchor.upstream.keys():
-            if n is not NOTHING_NODE:  # don't remove empty set
+            if n is NOTHING_NODE:  # remove dead leads
                 my_specimens -= n.specimens
 
     my_start, my_end = prev_node.start, next_node.end
-    my_upstream, my_downstream = prev_node.upstream, next_node.downstream
+    my_upstream, my_downstream = copy(prev_node.upstream), copy(next_node.downstream)
     if NOTHING_NODE is prev_node:  # Rare case
         my_start = anchor.start
-        my_upstream = anchor.upstream
+        my_upstream = copy(anchor.upstream)
     if NOTHING_NODE is next_node:  # Rare case
         my_end = anchor.end
-        my_downstream = anchor.downstream
+        my_downstream = copy(anchor.downstream)
 
     # TODO: what about case where more content is joining downstream?
     new = Node(777, my_start, my_end, my_specimens, my_upstream, my_downstream)
@@ -254,29 +261,26 @@ def split_one_group(prev_node, anchor, next_node):
     print(new.upstream.values())
     print(sum(new.upstream.values()))
 
-    # Update upstream/downstream
-    running = new.upstream.keys()
-
     ## n.upstream/downstream contains the same key multiple times?!
     ## My quick fix was to delete all upstream/downstream and just recalculate everything...
-    new.upstream = defaultdict(lambda: 0)
-    for n in running:
-        if n != NOTHING_NODE:
-            new.upstream[n] = len(new.specimens.intersection(n.specimens))
-            n.downstream[new] = new.upstream[n]
-            n.downstream[prev_node] = n.downstream[prev_node] - n.downstream[new]
-            if n.downstream[prev_node] == 0:
-                del n.downstream[prev_node]
+    # new.upstream = defaultdict(lambda: 0)
+    # for n in running:
+    #     if n != NOTHING_NODE:
+    #         new.upstream[n] = len(new.specimens.intersection(n.specimens))
+    #         n.downstream[new] = new.upstream[n]
+    #         n.downstream[prev_node] = n.downstream[prev_node] - n.downstream[new]
+    #         if n.downstream[prev_node] == 0:
+    #             del n.downstream[prev_node]
 
-    running = new.downstream.keys()
-    new.downstream = defaultdict(lambda: 0)
-    for n in running:
-        if n != NOTHING_NODE:
-            new.downstream[n] = len(new.specimens.intersection(n.specimens))
-            n.upstream[new] = new.downstream[n]
-            n.upstream[next_node] = n.upstream[next_node] - n.upstream[new]
-            if n.upstream[next_node] == 0:
-                del n.upstream[next_node]
+    # running = new.downstream.keys()
+    # new.downstream = defaultdict(lambda: 0)
+    # for n in running:
+    #     if n != NOTHING_NODE:
+    #         new.downstream[n] = len(new.specimens.intersection(n.specimens))
+    #         n.upstream[new] = new.downstream[n]
+    #         n.upstream[next_node] = n.upstream[next_node] - n.upstream[new]
+    #         if n.upstream[next_node] == 0:
+    #             del n.upstream[next_node]
 
     print(new.details())
     print(new.upstream.keys())
@@ -293,13 +297,15 @@ def split_one_group(prev_node, anchor, next_node):
     assert all([count > -1 for count in new.downstream.values()]), new.details()
     # Update Specimens in prev_node, anchor, next_node
     anchor.specimens -= new.specimens
-    if prev_node != NOTHING_NODE:
-        prev_node.specimens -= new.specimens
-        update_transition(prev_node)
+    # if prev_node != NOTHING_NODE:
+    prev_node.specimens -= new.specimens
+    # if next_node != NOTHING_NODE:
+    next_node.specimens -= new.specimens
 
-    if next_node != NOTHING_NODE:
-        next_node.specimens -= new.specimens
-        update_transition(next_node)
+    # Update upstream/downstream
+    running = {new, prev_node, anchor, next_node}.union(set(new.upstream.keys()), set(new.downstream.keys()))
+    for n in running:
+        update_transition(n)
 
     new.validate()
     return new
@@ -307,6 +313,7 @@ def split_one_group(prev_node, anchor, next_node):
 
 def split_groups(all_nodes: List[Node]):
     """This is called crossmerge in the R code"""
+    cross_merge_count = 0
     length = len(all_nodes)  # size of global_nodes changes, necessitating this weird loop
     for n in range(length):
         node = all_nodes[n]
@@ -329,6 +336,9 @@ def split_groups(all_nodes: List[Node]):
                             set2.intersection(index.specimens)  # =- does not work for empty sets
 
                     if set1 == set2 and len(set1) > 0:
+                        cross_merge_count += 1
+                        if cross_merge_count == 1:
+                            print("bad")
                         new_node = split_one_group(up, node, down)
                         all_nodes.append(new_node)
 
