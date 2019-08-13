@@ -1,10 +1,7 @@
 from typing import List
-
 import numpy as np
 from collections import defaultdict
 from copy import copy
-import networkx as nx
-import os
 
 BLOCK_SIZE = 20
 FILTER_THRESHOLD = 4

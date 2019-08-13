@@ -2,5 +2,7 @@ gfapy==1.0.0
 nose==1.3.7
 Django==2.2.1
 sqlparse==0.3.0
+numpy=1.16.2
+
 
 # To setup Django database file run python manage.py migrate.  db.sqlite3 is not included in the repo.
