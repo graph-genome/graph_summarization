@@ -233,9 +233,6 @@ def split_one_group(prev_node, anchor, next_node):
     """ Called when up.specimens == down.specimens"""
     # Comment: That is actually the case we want to split up to obtain longer blocks later
     # Extension of full windows will take care of potential loss of information later
-
-    if prev_node is NOTHING_NODE:
-        print("Start")
     my_specimens = copy(anchor.specimens)
     if prev_node is not NOTHING_NODE:  # normal case
         my_specimens = my_specimens.intersection(prev_node.specimens)
