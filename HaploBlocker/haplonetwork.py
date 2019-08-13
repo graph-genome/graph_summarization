@@ -47,9 +47,9 @@ class Node:
 
     def details(self):
         return f"""Node{self.ident}: {self.start.snp} - {self.end.snp}
-        specimens: {self.specimens}"""
-        # upstream: {dict((key, value) for key, value in self.upstream.items())}
-        # downstream: {dict((key, value) for key, value in self.downstream.items())}
+        upstream: {dict((key, value) for key, value in self.upstream.items())}
+        downstream: {dict((key, value) for key, value in self.downstream.items())}
+        {len(self.specimens)} specimens: {self.specimens}"""
 
     def is_nothing(self):
         """Useful in Node class definition to check for NOTHING_NODE"""
@@ -145,24 +145,31 @@ def populate_transitions(simplified_individuals):
 
 
 def update_transition(node):
+    """Only transition values for nodes already listed in upstream and downstream will be calculated."""
     if node is not NOTHING_NODE:
-        running = node.upstream.keys()
-        node.upstream = defaultdict(lambda: 0)
-        for n in running:
-            if n is not NOTHING_NODE:
-                node.upstream[n] = len(node.specimens.intersection(n.specimens))
+        update_stream_transitions(node, 'upstream')
+        update_stream_transitions(node, 'downstream')
 
-        running = node.downstream.keys()
-        node.downstream = defaultdict(lambda: 0)
-        for n in running:
-            if n is not NOTHING_NODE:
-                node.downstream[n] = len(node.specimens.intersection(n.specimens))
-
-        accounted_upstream = sum(node.upstream.values()) - node.upstream[NOTHING_NODE]
-        node.upstream[NOTHING_NODE] = len(node.specimens) - accounted_upstream
-        accounted_downstream = sum(node.downstream.values()) - node.downstream[NOTHING_NODE]
-        node.downstream[NOTHING_NODE] = len(node.specimens) - accounted_downstream
     return node
+
+
+def update_stream_transitions(node, stream):
+    """This will updated either upstream or downstream transition counts based on the
+    the value of 'stream'.  This is a meta-programming function that requires the exact
+    name of the class field 'upstream' or 'downstream' to work."""
+    g = getattr  #
+    running = g(node, stream).keys()
+    setattr(node, stream, defaultdict(lambda: 0))
+    for n in running:
+        if n is not NOTHING_NODE:
+            g(node, stream)[n] = len(node.specimens.intersection(n.specimens))
+    accounted_upstream = sum(g(node, stream).values()) - g(node, stream)[NOTHING_NODE]
+    g(node, stream)[NOTHING_NODE] = len(node.specimens) - accounted_upstream
+    assert all([count > -1 for count in g(node, stream).values()]), node.details()
+    # Cleans up old keys including NOTHING_NODE
+    to_be_deleted = {key for key, count in g(node, stream).items() if count == 0}
+    for key in to_be_deleted:
+        g(node, stream).pop(key, None)
 
 
 def simple_merge(full_graph):
@@ -256,59 +263,30 @@ def split_one_group(prev_node, anchor, next_node):
     # TODO: what about case where more content is joining downstream?
     new = Node(777, my_start, my_end, my_specimens, my_upstream, my_downstream)
 
-    print(new.details())
-    print(new.upstream.keys())
-    print(new.upstream.values())
-    print(sum(new.upstream.values()))
-
-    ## n.upstream/downstream contains the same key multiple times?!
-    ## My quick fix was to delete all upstream/downstream and just recalculate everything...
-    # new.upstream = defaultdict(lambda: 0)
-    # for n in running:
-    #     if n != NOTHING_NODE:
-    #         new.upstream[n] = len(new.specimens.intersection(n.specimens))
-    #         n.downstream[new] = new.upstream[n]
-    #         n.downstream[prev_node] = n.downstream[prev_node] - n.downstream[new]
-    #         if n.downstream[prev_node] == 0:
-    #             del n.downstream[prev_node]
-
-    # running = new.downstream.keys()
-    # new.downstream = defaultdict(lambda: 0)
-    # for n in running:
-    #     if n != NOTHING_NODE:
-    #         new.downstream[n] = len(new.specimens.intersection(n.specimens))
-    #         n.upstream[new] = new.downstream[n]
-    #         n.upstream[next_node] = n.upstream[next_node] - n.upstream[new]
-    #         if n.upstream[next_node] == 0:
-    #             del n.upstream[next_node]
-
-    print(new.details())
-    print(new.upstream.keys())
-    print(new.upstream.values())
-    print(sum(new.upstream.values()))
-
-    accounted_upstream = sum(new.upstream.values()) - new.upstream[NOTHING_NODE]
-    # print(f'upstream {sum(new.upstream.values())} downstream {sum(new.downstream.values())}')
-    new.upstream[NOTHING_NODE] = len(new.specimens) - accounted_upstream
-    accounted_downstream = sum(new.downstream.values()) - new.downstream[NOTHING_NODE]
-    new.downstream[NOTHING_NODE] = len(new.specimens) - accounted_downstream
-
-    assert all([count > -1 for count in new.upstream.values()]), new.details()
-    assert all([count > -1 for count in new.downstream.values()]), new.details()
     # Update Specimens in prev_node, anchor, next_node
     anchor.specimens -= new.specimens
-    # if prev_node != NOTHING_NODE:
     prev_node.specimens -= new.specimens
-    # if next_node != NOTHING_NODE:
     next_node.specimens -= new.specimens
 
     # Update upstream/downstream
-    running = {new, prev_node, anchor, next_node}.union(set(new.upstream.keys()), set(new.downstream.keys()))
-    for n in running:
+    update_neighbor_pointers(new)
+    suspects = {new, prev_node, anchor, next_node}.union(set(new.upstream.keys()), set(new.downstream.keys()))
+    for n in suspects:
         update_transition(n)
-
     new.validate()
+    #TODO: Delete nodes with zero specimens from the Graph?
     return new
+
+
+def update_neighbor_pointers(new_node):
+    """Ensure that my new upstream pointers have matching downstream pointers in neighbors,
+    and vice versa.  This does not set correct transition rates, it only makes the nodes connected."""
+    for n in new_node.upstream.keys():
+        if n != NOTHING_NODE:
+            n.downstream[new_node] = 1
+    for n in new_node.downstream.keys():
+        if n != NOTHING_NODE:
+            n.upstream[new_node] = 1
 
 
 def split_groups(all_nodes: List[Node]):

@@ -1,8 +1,10 @@
 from django.test import TestCase
+from vgbrowser.settings import BASE_DIR
 import unittest
 import os
 # Create your tests here.
-from HaploBlocker.models import Node, Path, Edge
+# from HaploBlocker.models import Node, Path, Edge
+from HaploBlocker.haplonetwork import Node, Point, NOTHING_NODE, split_one_group
 from HaploBlocker.haplonetwork import read_data, get_all_signatures, build_individuals, get_unique_signatures, \
     populate_transitions, simple_merge, neglect_nodes, split_groups
 
@@ -18,15 +20,16 @@ from HaploBlocker.haplonetwork import read_data, get_all_signatures, build_indiv
 
 
 class HaploTest(unittest.TestCase):
-
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(self) -> None:
         print(os.getcwd())
-        self.alleles, self.individuals = read_data("test_data/KE_chromo10.txt")
+        self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
+
+    def create_nodes(self):
         self.unique_signatures = get_all_signatures(self.alleles, self.individuals)
         self.simplified_individuals = build_individuals(self.individuals, self.unique_signatures)
         # G = build_graph(simplified_individuals)
         populate_transitions(self.simplified_individuals)
-
 
     def test_master(self):
         pass
@@ -62,6 +65,7 @@ class HaploTest(unittest.TestCase):
 
     @unittest.skip
     def test_no_duplicate_nodes(self):
+        self.create_nodes()
         unique_nodes = set()
         duplicates_found = 0
         for locus in self.simplified_individuals:
@@ -89,13 +93,55 @@ class HaploTest(unittest.TestCase):
         return summary2
 
 
+    def test_split_one_group(self):
+        """Self contained example test to look at outputs of one group
+                     ['C', {a, b, d}, 'T', {c}],  # SNP
+                     ['GGA', {a, b, c, d}],  # anchor
+                     ['C', {a, b, d}, '', {c}],  # [3] repeated from [1] SNP
+        """
+        nodes = [
+            Node(91, Point(1), Point(1), {1,2,4}),
+            Node(92, Point(1), Point(1), {3}),
+            Node(93, Point(2), Point(2), {1,2,3,4}),  # [2] anchor
+            Node(94, Point(3), Point(3), {1,2,4}),
+            Node(95, Point(3), Point(3), {3}),
+            # additional bracketing to anchor
+            Node(90, Point(0), Point(0), {1,2,3,4}),
+            Node(96, Point(4), Point(4), {1,2,3,4})
+        ]
+        # connections
+        nodes[5].downstream[nodes[0]] = 3
+        nodes[5].downstream[nodes[1]] = 1
+        nodes[0].downstream[nodes[2]] = 3
+        nodes[1].downstream[nodes[2]] = 1
+        nodes[2].downstream[nodes[3]] = 3
+        nodes[2].downstream[nodes[4]] = 1
+        nodes[3].downstream[nodes[6]] = 3
+        nodes[4].downstream[nodes[6]] = 1
+        nodes[0].upstream[nodes[5]] = 3
+        nodes[1].upstream[nodes[5]] = 1
+        nodes[2].upstream[nodes[0]] = 3
+        nodes[2].upstream[nodes[1]] = 1
+        nodes[3].upstream[nodes[2]] = 3
+        nodes[4].upstream[nodes[2]] = 1
+        nodes[6].upstream[nodes[3]] = 3
+        nodes[6].upstream[nodes[4]] = 1
+        new_node = split_one_group(nodes[0], nodes[2], nodes[3])  # no mentions of minorities [1] or [4]
+        print(new_node.details())
+        assert new_node in nodes[5].downstream and nodes[1] in nodes[5].downstream
+        assert nodes[0] not in nodes[5].downstream
+        assert nodes[5] in new_node.upstream and nodes[6] in new_node.downstream
+        assert new_node in nodes[6].upstream and nodes[4] in nodes[6].upstream
+        assert nodes[3] not in nodes[6].upstream
+
     def _test_split_groups(self, all_nodes):
         summary3 = split_groups(all_nodes)
-        assert summary3
+        assert len(summary3) > 10
         return summary3
 
 
     def test_workflow(self):
+        self.create_nodes()
         all_nodes = [node for window in self.unique_signatures for node in window.values()]  # think about referencing and deletion
         summary1 = self._test_simple_merge(all_nodes)
         summary2 = self._test_neglect_nodes(summary1)
