@@ -6,13 +6,9 @@ from Graph.models import Graph, Slice, Node, Path, SlicedGraph
 from Graph.sort import DAGify
 
 # Define the working directory
-WD = os.path.dirname(__file__)
-# this removes the "Graph" directory from the string
-# We need this dirty hack or Travis is messing about not being able to deal with relatives paths
-WD = WD[:-5]
-# Define several test example directories
-PATH_TO_TEST_DATA = join(WD, "test_data")
-location_of_xg = join(WD, "test_data","xg")
+from vgbrowser.settings import BASE_DIR
+PATH_TO_TEST_DATA = join(BASE_DIR, "test_data")
+location_of_xg = join(BASE_DIR, "test_data","xg")
 
 
 def G(rep):
