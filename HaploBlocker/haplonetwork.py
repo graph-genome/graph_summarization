@@ -190,7 +190,7 @@ def simple_merge(full_graph):
                 next_node.start = node.start
                 #prepare to delete node by removing references
                 for parent in node.upstream.keys():
-                    if parent != NOTHING_NODE:
+                    if parent is not NOTHING_NODE:
                         count = parent.downstream[node]
                         del parent.downstream[node]  # updating pointer
                         parent.downstream[next_node] = count
@@ -279,41 +279,38 @@ def update_neighbor_pointers(new_node):
     """Ensure that my new upstream pointers have matching downstream pointers in neighbors,
     and vice versa.  This does not set correct transition rates, it only makes the nodes connected."""
     for n in new_node.upstream.keys():
-        if n != NOTHING_NODE:
+        if n is not NOTHING_NODE:
             n.downstream[new_node] = 1
     for n in new_node.downstream.keys():
-        if n != NOTHING_NODE:
+        if n is not NOTHING_NODE:
             n.upstream[new_node] = 1
 
 
 def split_groups(all_nodes: List[Node]):
     """This is called crossmerge in the R code"""
-    cross_merge_count = 0
     length = len(all_nodes)  # size of global_nodes changes, necessitating this weird loop
     for n in range(length):
         node = all_nodes[n]
-        # check if all transitition upstream match with one of my downstream nodes
+        # check if all transition upstream match with one of my downstream nodes
         # if set(node.upstream.values()) == set(node.downstream.values()): WHY?
         if len(node.specimens) > 0:
             # Matchup upstream and downstream with specimen identities
             for up in tuple(node.upstream.keys()):
                 for down in tuple(node.downstream.keys()):
-
-                    set1 = up.specimens
-                    set2 = down.specimens
-                    if up == NOTHING_NODE:
-                        set1 = node.specimens
+                    set1 = copy(up.specimens)
+                    set2 = copy(down.specimens)
+                    if up is NOTHING_NODE:
+                        set1 = copy(node.specimens)
                         for index in tuple(node.upstream.keys()):
-                            set1.intersection(index.specimens)  # =- does not work for empty sets
-                    if down == NOTHING_NODE:
-                        set2 = node.specimens
+                            if index is not NOTHING_NODE:
+                                set1.difference_update(index.specimens)
+                    if down is NOTHING_NODE:
+                        set2 = copy(node.specimens)
                         for index in tuple(node.downstream.keys()):
-                            set2.intersection(index.specimens)  # =- does not work for empty sets
+                            if index is not NOTHING_NODE:
+                                set2.difference_update(index.specimens)
 
                     if set1 == set2 and len(set1) > 0:
-                        cross_merge_count += 1
-                        if cross_merge_count == 1:
-                            print("bad")
                         new_node = split_one_group(up, node, down)
                         all_nodes.append(new_node)
 
