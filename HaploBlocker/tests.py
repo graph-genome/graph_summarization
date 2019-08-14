@@ -149,6 +149,8 @@ class HaploTest(unittest.TestCase):
         summary1 = self._test_simple_merge(all_nodes)
         summary2 = self._test_neglect_nodes(summary1)
         summary3 = self._test_split_groups(summary2)
+        assert len(summary1) > len(summary2) > len(summary3), "Each summarization should result in less nodes"
+        summary4 = simple_merge(summary3)
         bad = summary3[2]
         print(bad.details())
 

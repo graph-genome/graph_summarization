@@ -311,12 +311,12 @@ def split_groups(all_nodes: List[Node]):
     are present where 2 would suffice.  Split groups splits the anchor node and gives pieces
     to each haplotype; reducing 5 Nodes to 2.
 
+    :Returns new graph with less nodes, all_nodes is still modified, but length doesn't change
     Note: This is called crossmerge in the R code.
     TODO: Ideally, the database would retain some record of how many nucleotides are shared between
     the two new haplotype nodes."""
-    length = len(all_nodes)  # size of global_nodes changes, necessitating this weird loop
-    for n in range(length):
-        node = all_nodes[n]
+    new_graph = list(all_nodes)
+    for node in all_nodes:
         # check if all transition upstream match with one of my downstream nodes
         if len(node.specimens) > 0:
             # Matchup upstream and downstream with specimen identities
@@ -337,7 +337,7 @@ def split_groups(all_nodes: List[Node]):
 
                     if set1 == set2 and len(set1) > 0:
                         new_node = split_one_group(up, node, down)
-                        all_nodes.append(new_node)
+                        new_graph.append(new_node)
 
-    filtered = neglect_nodes(all_nodes, 0)  # Delete nodes with zero specimens from the Graph?
+    filtered = neglect_nodes(new_graph, 0)  # Delete nodes with zero specimens from the Graph?
     return filtered
