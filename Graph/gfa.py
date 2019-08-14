@@ -60,8 +60,9 @@ class TopologicalSort:
 
 
 class GFA:
-    def __init__(self, gfa: gfapy.Gfa):
+    def __init__(self, gfa: gfapy.Gfa, source_path: str):
         self.gfa = gfa
+        self.source_path = source_path
 
     #    @classmethod
     #    def load_from_pickle(cls, file: str):
@@ -77,14 +78,14 @@ class GFA:
         process.wait()
         if process.returncode != 0:
             raise OSError()
-        graph = cls(gfa)
+        graph = cls(gfa, file)
         process.stdout.close()
         return graph
 
     @classmethod
     def load_from_gfa(cls, file: str):
         gfa = gfapy.Gfa.from_file(file)
-        graph = cls(gfa)
+        graph = cls(gfa, file)
         return graph
 
     #    def save_as_pickle(self, outfile: str):
@@ -111,43 +112,41 @@ class GFA:
             gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
         for node in graph.nodes.values(): # in no particular order
             gfa.add_line('\t'.join(['S', str(node.id), node.seq]))
-        return cls(gfa)
+        return cls(gfa, "from Graph")
 
-    @property
     def to_paths(self) -> List[Path]:
-        node_hash = {}
+        # create parent object for this genome
+        gdb = GraphGenome.objects.get_or_create(name=self.source_path)[0]
         for segment in self.gfa.segments:
-            node_id = segment.name + "+"
-            node = Node(segment.sequence)
-            node_hash[node_id] = node
-
-            node_id = segment.name + "-"
-            node = Node(segment.sequence)
-            node_hash[node_id] = node
+            node_id = segment.name
+            Node.objects.get_or_create(seq=segment.sequence, name=node_id, graph=gdb)
 
         paths = []
         for path in self.gfa.paths:
-            nodes = []
-            for node in path.segment_names:
-                node_index = NodeTraversal(Node(node_hash[node.name + node.orient].seq, node.name), node.orient)
-                nodes.append(node_index)
-            paths.append(Path(path.name, nodes))
-
+            p = Path(path.name, graph=gdb).save()
+            p.append_gfa_nodes(path.segment_names)
+            paths.append(p)
+        # path_names = [path.name for path in self.gfa.paths]
+        # list(Path.objects.get(name__in=path_names))
         return paths
 
-    @property
-    def to_graph(self):
+    def to_graph(self) -> GraphGenome:
+        paths = self.to_paths()
+        if paths:
+            return paths[0].graph
+        else:
+            return None
+
         # Extract all paths into graph
-        path_names = [p.name for p in self.gfa.paths]
-        graph = Graph(path_names)  # Paths can be empty at start
-        for path in self.gfa.paths:
-            for node in path.segment_names:
-                graph.append_node_to_path(node.name, node.orient, path.name)
-        for segment in self.gfa.segments:
-            graph.nodes[segment.name].seq = segment.sequence
-        graph.paths = self.to_paths
-        return graph
-        # IMPORTANT: It's not clear to Josiah how much of the below is necessary, so it's being left unmodified.
+        # path_names = [p.name for p in self.gfa.paths]
+        # graph = Graph(path_names)  # Paths can be empty at start
+        # for path in self.gfa.paths:
+        #     for path_index, node in enumerate(path.segment_names):
+        #         graph.append_node_to_path(node.name, node.orient, path.name, path_index)
+        # for segment in self.gfa.segments:
+        #     graph.nodes[segment.name].seq = segment.sequence
+        # graph.paths = self.to_paths()
+        # return graph
 
 
 '''

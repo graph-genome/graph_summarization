@@ -92,7 +92,7 @@ class DAGifyTest(unittest.TestCase):
 
     def test_dagify(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile = dagify.generate_profiles(0)
         slices = dagify.to_slices(profile)
@@ -103,7 +103,7 @@ class DAGifyTest(unittest.TestCase):
 
     def test_dagify2(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test2.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile = dagify.generate_profiles(0)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -112,7 +112,7 @@ class DAGifyTest(unittest.TestCase):
 
     def test_dagify3(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test3.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 1)
@@ -121,7 +121,7 @@ class DAGifyTest(unittest.TestCase):
 
     def test_dagify_altpath(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "alternate_paths.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 1)
@@ -130,7 +130,7 @@ class DAGifyTest(unittest.TestCase):
 
     def test_dagify_dup(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "duplicate.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 2)
@@ -140,7 +140,7 @@ class DAGifyTest(unittest.TestCase):
 
     def test_unresolved_repreat(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "unresolved_repeat.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -149,7 +149,7 @@ class DAGifyTest(unittest.TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "inversion.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -158,7 +158,7 @@ class DAGifyTest(unittest.TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_nested_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "nested_inv.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -167,7 +167,7 @@ class DAGifyTest(unittest.TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "simple_inv.gfa"))
-        paths = gfa.to_paths
+        paths = gfa.to_paths()
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -216,7 +216,7 @@ class GFATest(unittest.TestCase):
 
     def make_graph_from_gfa(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
-        graph = gfa.to_graph
+        graph = gfa.to_graph()
         return graph, gfa
 
     def test_export_as_gfa(self):
@@ -226,7 +226,7 @@ class GFATest(unittest.TestCase):
 
     def test_load_gfa_to_graph_2(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test2.gfa"))
-        graph = gfa.to_graph
+        graph = gfa.to_graph()
         self.assertIsNotNone(graph)
 
     @unittest.skipIf(not os.path.isfile(location_of_xg), "XG binary is not found.")
@@ -234,7 +234,7 @@ class GFATest(unittest.TestCase):
         graph = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
         graph.save_as_xg(join(PATH_TO_TEST_DATA, "test.xg"), location_of_xg)
         graph2 = GFA.load_from_xg(join(PATH_TO_TEST_DATA, "test.xg"), location_of_xg)
-        graph = graph2.to_graph
+        graph = graph2.to_graph()
         # graph = SlicedGraph.from_graph(graph)
         # x = 'x'
         # y = 'y'

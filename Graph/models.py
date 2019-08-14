@@ -5,10 +5,11 @@ import sys
 from uuid import uuid1
 
 from django.db import models
+
 from Graph.utils import keydefaultdict
 from Utils.models import CustomSaveManager
 
-
+# GraphGenome specific error classes for more informative error catching
 class NoAnchorError(ValueError):
     pass
 class PathOverlapError(ValueError):
@@ -23,35 +24,27 @@ class GraphGenome(models.Model):
     name = models.CharField(max_length=1000)
 
 
-class DoubleNode():
-    plus = Node
-    minus = Node
-
-    def visitors(self):
-        plus_node_set.union(minus_node_set)
-
-
 class Node(models.Model):
     seq = models.CharField(max_length=255, blank=True)
-    name = models.CharField(primary_key=True)
+    name = models.CharField(primary_key=True, max_length=15)
     graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ['graph', 'name']
 
-    def __len__(self):
-        return len(self.paths)
-
-    def __repr__(self):
-        """Paths representation is sorted because set ordering is not guaranteed."""
-        return repr(self.seq) + \
-        ', {' + ', '.join(str(i) for i in list(self.paths)) + '}'
-
-    def __eq__(self, other):
-        if not isinstance(other, Node):
-            print("Warn: comparing Node and ", type(other), other)
-            return False
-        return self.seq == other.seq and self.paths == other.paths  # and self.id == other.id
+    # def __len__(self):
+    #     return nodetraversal_set.count()
+    #
+    # def __repr__(self):
+    #     """Paths representation is sorted because set ordering is not guaranteed."""
+    #     return repr(self.seq) + \
+    #     ', {' + ', '.join(str(i) for i in list(self.paths)) + '}'
+    #
+    # def __eq__(self, other):
+    #     if not isinstance(other, Node):
+    #         print("Warn: comparing Node and ", type(other), other)
+    #         return False
+    #     return self.seq == other.seq and self.paths == other.paths  # and self.id == other.id
 
     def __hash__(self):
         return hash(self.seq)
@@ -64,20 +57,20 @@ class Node(models.Model):
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
 
-    # Typing is picky about order of declaration, but strings bypass this PEP484
-    def merge_minor(self, minor_allele: 'Node') -> 'Node':
-        m = Node(self.seq, self.paths.union(minor_allele.paths))
-        # TODO: penalize paths with nucleotide mismatch
-        return m
-
-    def intersection(self, downstream: 'Node') -> 'Node':
-        m = Node(self.seq + downstream.seq,
-                 self.paths.intersection(downstream.paths))
-        return m
-
-    def union(self, downstream: 'Node') -> 'Node':
-        return Node(self.seq + downstream.seq,
-                 self.paths.union(downstream.paths))
+    # # Typing is picky about order of declaration, but strings bypass this PEP484
+    # def merge_minor(self, minor_allele: 'Node') -> 'Node':
+    #     m = Node(self.seq, self.paths.union(minor_allele.paths))
+    #     # TODO: penalize paths with nucleotide mismatch
+    #     return m
+    #
+    # def intersection(self, downstream: 'Node') -> 'Node':
+    #     m = Node(self.seq + downstream.seq,
+    #              self.paths.intersection(downstream.paths))
+    #     return m
+    #
+    # def union(self, downstream: 'Node') -> 'Node':
+    #     return Node(self.seq + downstream.seq,
+    #              self.paths.union(downstream.paths))
 
 class Slice:
     def __init__(self, nodes: Iterable[Node]):
@@ -138,10 +131,7 @@ class Path(models.Model):
     sequences is the accession's genome.  Create Paths first from accession names, then append
     them to Nodes to link together."""
     accession = models.CharField(unique=True, max_length=1000)  # one path per accession
-
-    # def __init__(self, accession: str, nodes = []):
-    #     # self.nodes = nodes # List[NodeTraversal]
-    #     self.position_checkpoints = {}  # TODO: currently not used
+    graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
 
     def __getitem__(self, path_index):
         return self.nodes[path_index]
@@ -158,19 +148,24 @@ class Path(models.Model):
 
     @property
     def nodes(self):
-        return NodeTraversal.objects.get(path=self)#.order_by('order')
+        return NodeTraversal.objects.get(path=self).order_by('order')
 
-    def append_node(self, node: Node, strand: str):
+    def append_gfa_nodes(self, nodes):
+        assert hasattr(nodes[0], 'orient') and hasattr(nodes[0], 'name'), 'Expecting gfapy.Gfa.path'
+        for node in nodes:
+            NodeTraversal(node=Node.objects.get(name=node.name),
+                          path=self, strand=node.orient).save()
+
+    def append_node(self, node: Node, path_index, strand: str):
         """This is the preferred way to build a graph in a truly non-linear way.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node (order independent)."""
-        NodeTraversal(node, self, strand).save()
-        return node
+        NodeTraversal(node, self, strand, path_index).save()
 
-    @classmethod
-    def build(cls, name: str, seq_of_nodes: List[str]):
-        node = Node.objects.create(seq)
-        for p in paths:
-            NodeTraversal.objects.create(node, path)
+    # @classmethod
+    # def build(cls, name: str, seq_of_nodes: List[str]):
+    #     node = Node.objects.create(seq)
+    #     for p in paths:
+    #         NodeTraversal.objects.create(node, path)
 
     def name(self):
         return self.accession
@@ -183,10 +178,11 @@ class Path(models.Model):
 
 class NodeTraversal(models.Model):
     """Link from a Path to a Node it is currently traversing.  Includes strand"""
-    node = models.ForeignKey(Node, index=True, on_delete=models.CASCADE)
-    path = models.ForeignKey(Path, index=True, on_delete=models.CASCADE, help_text='')
-    order = models.IntegerField(help_text='Defines the order a path lists traversals')
+    node = models.ForeignKey(Node, db_index=True, on_delete=models.CASCADE)
+    path = models.ForeignKey(Path, db_index=True, on_delete=models.CASCADE, help_text='')
     strand = models.CharField(choices=[('+', '+'),('-', '-')], default='+', max_length=1)
+    order = models.IntegerField(help_text='Defines the order a path lists traversals')  # set automatically
+
     objects = CustomSaveManager()
 
     def __repr__(self):
@@ -200,11 +196,11 @@ class NodeTraversal(models.Model):
         return self.node.id == other.node.id and self.strand == other.strand
 
     def save(self, **kwargs):
-        """IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
+        """Checks the largest 'order' value in the current path and increments by 1.
+        IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
         or get_or_create"""
-        self.order = self.path.nodetraversal_set.all().order_by('-order').first().order + 1
+        # self.order = self.path.nodetraversal_set.all().order_by('-order').first().order + 1
         super(NodeTraversal, self).save(**kwargs)
-
 
 
 class Graph:
@@ -251,7 +247,7 @@ class Graph:
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
 
-    def append_node_to_path(self, node_id, strand, path_name):
+    def append_node_to_path(self, node_id, strand, path_name, path_index):
         """This is the preferred way to build a graph in a truly non-linear way.
         Nodes will be created if necessary.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
@@ -261,7 +257,7 @@ class Graph:
                 self.nodes[node_id] = Node('', [], node_id)
             else:
                 raise ValueError("Provide the id of the node, not", node_id)
-        self.paths[path_name].append_node(self.nodes[node_id], strand)
+        self.paths[path_name].append_node(self.nodes[node_id], path_index, strand)
 #
 #     def compute_slices(self):
 #         """Alias: Upgrades a Graph to a SlicedGraph"""
