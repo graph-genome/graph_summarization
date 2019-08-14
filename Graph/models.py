@@ -22,6 +22,7 @@ class NodeMissingError(ValueError):
 class Node:#(models.Model):
     # seq = models.CharField(max_length=255, blank=True)
     # paths = models.ManyToOneRel(Path)
+    # display_name = models.CharField(max_length=255, blank=True)
 
     def __init__(self, seq: str, paths: 'Iterable[Path]', id: str = None):
         assert isinstance(seq, str), seq

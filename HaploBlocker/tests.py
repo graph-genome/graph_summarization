@@ -4,7 +4,7 @@ import unittest
 import os
 # Create your tests here.
 # from HaploBlocker.models import Node, Path, Edge
-from HaploBlocker.haplonetwork import Node, Point, NOTHING_NODE, split_one_group
+from HaploBlocker.haplonetwork import Node, Point, split_one_group
 from HaploBlocker.haplonetwork import read_data, get_all_signatures, build_individuals, get_unique_signatures, \
     populate_transitions, simple_merge, neglect_nodes, split_groups
 
@@ -22,17 +22,20 @@ from HaploBlocker.haplonetwork import read_data, get_all_signatures, build_indiv
 class HaploTest(unittest.TestCase):
     @classmethod
     def setUpClass(self) -> None:
+        """Reads the input data file once.  Tests that need a fresh graph must
+        call create_nodes()"""
         print(os.getcwd())
         self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
 
     def create_nodes(self):
+        """Tests that need a fresh graph must call create_nodes() FIRST!
+        Graph summarization works by side effecting Node objects.  Tests can not run independently
+        with order dependent side effects.  This method is slow, so don't use it unless you
+        need it."""
         self.unique_signatures = get_all_signatures(self.alleles, self.individuals)
         self.simplified_individuals = build_individuals(self.individuals, self.unique_signatures)
         # G = build_graph(simplified_individuals)
         populate_transitions(self.simplified_individuals)
-
-    def test_master(self):
-        pass
 
 
     def test_read(self):

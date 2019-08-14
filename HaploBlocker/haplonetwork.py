@@ -1,3 +1,8 @@
+"""
+HaploBlocker handles Graph Summarization explained in:
+Graph Summarization: https://github.com/graph-genome/vgbrowser/issues/3
+HaploBlocker: https://github.com/graph-genome/vgbrowser/issues/19
+"""
 from typing import List
 import numpy as np
 from collections import defaultdict
@@ -21,15 +26,22 @@ class Point:
 
 
 class Node:
+    """This definition of Node is designed to be equivalent to the R code HaploBlocker Nodes.
+    It has no concept of strand, CNV.  It uses an absolute Start and End position, but those
+    are not referenced very often.
+    Critically, it needs Node.NOTHING which is used frequently to mark specimens whose
+    upstream or downstream nodes have been pruned.  The usage of Node.NOTHING is equivalent to
+    our sequence mismatch penalties. In both cases information is being discarded for the
+    purpose of summarization."""
     def __init__(self, ident, start, end, specimens=None, upstream=None, downstream=None):
         self.ident = ident
-        self.start = start #Point()
-        self.end = end #Point()
+        self.start = start  # Point()
+        self.end = end  # Point()
         self.specimens = set() if specimens is None else specimens
-        # {NOTHING_NODE:501, Node: 38,  Node: 201, Node: 3}
         self.upstream = defaultdict(lambda: 0) if not upstream else upstream
-        # {Node: 38,  Node: 201, Node: 3}
+        # E.g. {Node.NOTHING:501, Node: 38,  Node: 201, Node: 3}
         self.downstream = defaultdict(lambda: 0) if not downstream else downstream
+        # E.g. {Node: 38,  Node: 201, Node: 3}
         assert self.start is not None and self.end is not None, self.details()
         assert self.end.snp is not None or (self.end.snp is None and self.start.snp is None), self.details()
 
@@ -49,17 +61,23 @@ class Node:
         {len(self.specimens)} specimens: {self.specimens}"""
 
     def is_nothing(self):
-        """Useful in Node class definition to check for NOTHING_NODE"""
+        """Useful in Node class definition to check for Node.NOTHING"""
         return self.ident == -1 and self.start.snp is None and self.end.snp is None
 
     def validate(self):
+        """Returns true if the Node has specimens and does not have any negative
+        transition values, raises an AssertionError otherwise."""
         if not self.specimens:
             assert self.specimens, "Specimens are empty" + self.details()
-        for n in self.upstream:
-            for node, weight in n.downstream.items():
-                if not node.is_nothing() and weight < 0:
-                    print(n.details())
-                    assert weight > -1, node.details()
+        for node, weight in self.upstream.items():
+            if not node.is_nothing() and weight < 0:
+                print(self.details())
+                assert weight > -1, node.details()
+
+        for node, weight in self.downstream.items():
+            if not node.is_nothing() and weight < 0:
+                print(self.details())
+                assert weight > -1, node.details()
         return True
 
     def is_beginning(self) -> bool:
@@ -69,11 +87,13 @@ class Node:
         return len(self.downstream) == 1 and first(self.downstream).is_nothing()
 
 
-NOTHING_NODE = Node(-1, Point(None), Point(None))
+Node.NOTHING = Node(-1, Point(None), Point(None))
 
 
 def read_data(file_path):
-    """Individuals are rows, not columns"""
+    """Reads one of Torsten's SNP files.  In the file, Individuals are columns, not rows.
+    This method returns both loci (all 501 individual alleles at one loci) and the Transposed
+    individuals (all 32,000 loci for one individual at a time)."""
     loci = []
     with open(file_path) as ke:
         for line in ke.readlines():
@@ -88,6 +108,12 @@ def signature(individual, start_locus):
 
 
 def get_unique_signatures(individuals, start_locus):
+    """A signature is a series of BLOCK_SIZE SNPs inside of a locus.  We want to know how many
+    unique signatures are present inside of one locus.  A Node is created for each unique
+    signature found.
+    EX: Signature(1000001011013100200)
+
+    This method does not currently have error tolerance like R Haploblocker"""
     unique_blocks = {}
     for individual in individuals:
         sig = signature(individual, start_locus)
@@ -106,26 +132,27 @@ def get_all_signatures(alleles, individuals):
 
 
 def build_individuals(individuals, unique_signatures):
+    """Describes an individual as a list of Nodes that individual visits.
+    simplified_individuals is a list of loci which contain a list of Nodes which each contain specimen
+    build nodes:  [0] first 4 are the 4 starting signatures in window 0.
+    Nodes represent a collection of individuals with the same signature at that locus
+    For each node list which individuals are present at that node"""
     simplified_individuals = []
     for i_specimen, specimen in enumerate(individuals):
         my_simplification = []
         for w, window in enumerate(unique_signatures):  # the length of the genome
             sig = signature(specimen, w * BLOCK_SIZE)
-    #         print(sig, unique_signatures[w][sig])
-    #         print(i_specimen, window)
             my_simplification.append(unique_signatures[w][sig])
         simplified_individuals.append(my_simplification)
     return simplified_individuals
 
 
 def populate_transitions(simplified_individuals):
-    """ simplified_individuals is a list of loci which contain a list of Nodes which each contain specimen
-    build nodes:  [0] first 4 are the 4 starting signatures in window 0.
-    Nodes represent a collection of individuals with the same signature at that locus
-    For each node list which individuals are present at that node
-    List transition rates from one node to all other upstream and downstream
+    """
+    List transition rates from one node to all other upstream and downstream.
+    This method populates Node.specimens and begins the process of side-effecting Nodes.
+    To rebuild a fresh Graph copy, you must start at get_all_signatures()
     :param simplified_individuals:
-    :return:
     """
     for i, indiv in enumerate(simplified_individuals):
         # look what variants are present
@@ -134,16 +161,16 @@ def populate_transitions(simplified_individuals):
             if x + 1 < len(indiv):
                 node.downstream[indiv[x + 1]] += 1
             else:
-                node.downstream[NOTHING_NODE] += 1
+                node.downstream[Node.NOTHING] += 1
             if x - 1 >= 0:
                 node.upstream[indiv[x - 1]] += 1
             else:
-                node.upstream[NOTHING_NODE] += 1
+                node.upstream[Node.NOTHING] += 1
 
 
 def update_transition(node):
     """Only transition values for nodes already listed in upstream and downstream will be calculated."""
-    if node is not NOTHING_NODE:
+    if node is not Node.NOTHING:
         update_stream_transitions(node, 'upstream')
         update_stream_transitions(node, 'downstream')
 
@@ -158,12 +185,12 @@ def update_stream_transitions(node, stream):
     running = g(node, stream).keys()
     setattr(node, stream, defaultdict(lambda: 0))
     for n in running:
-        if n is not NOTHING_NODE:
+        if n is not Node.NOTHING:
             g(node, stream)[n] = len(node.specimens.intersection(n.specimens))
-    accounted_upstream = sum(g(node, stream).values()) - g(node, stream)[NOTHING_NODE]
-    g(node, stream)[NOTHING_NODE] = len(node.specimens) - accounted_upstream
+    accounted_upstream = sum(g(node, stream).values()) - g(node, stream)[Node.NOTHING]
+    g(node, stream)[Node.NOTHING] = len(node.specimens) - accounted_upstream
     assert all([count > -1 for count in g(node, stream).values()]), node.details()
-    # Cleans up old keys including NOTHING_NODE
+    # Cleans up old keys including Node.NOTHING
     to_be_deleted = {key for key, count in g(node, stream).items() if count == 0}
     for key in to_be_deleted:
         g(node, stream).pop(key, None)
@@ -178,43 +205,41 @@ def simple_merge(full_graph):
     n = 0
     while n < len(full_graph):  # size of global_nodes changes, necessitating this weird loop
         node = full_graph[n]
-    #     print(node, type(node))
         if len(node.downstream) == 1:
             next_node = first(node.downstream.keys())
             if len(node.specimens) == len(next_node.specimens):
-                #Torsten deletes nodeA and modifies next_node
+                # Torsten deletes nodeA and modifies next_node
                 next_node.upstream = node.upstream
                 next_node.start = node.start
-                #prepare to delete node by removing references
+                # prepare to delete node by removing references
                 for parent in node.upstream.keys():
-                    if parent is not NOTHING_NODE:
+                    if parent is not Node.NOTHING:
                         count = parent.downstream[node]
                         del parent.downstream[node]  # updating pointer
                         parent.downstream[next_node] = count
-                full_graph.remove(node)  #delete node
-                # zoom_stack[0].append(merged)
+                full_graph.remove(node)  # delete node
                 n -= 1
         n += 1
     return full_graph
 
 
 def delete_node(node, cutoff):
-    """Changes references to this node to add to references to NOTHING_NODE"""
+    """Changes references to this node to add to references to Node.NOTHING"""
     if cutoff < 1:
         return  # if cutoff is 0, then don't touch upstream and downstream
     for parent, count in node.upstream.items():
-        parent.downstream[NOTHING_NODE] += parent.downstream[node]
+        parent.downstream[Node.NOTHING] += parent.downstream[node]
         del parent.downstream[node]
     for descendant, count in node.downstream.items():
-        descendant.upstream[NOTHING_NODE] += descendant.upstream[node]
+        descendant.upstream[Node.NOTHING] += descendant.upstream[node]
         del descendant.upstream[node]
 
 
 def neglect_nodes(all_nodes, deletion_cutoff=FILTER_THRESHOLD):
+    """Deletes nodes if they have too few specimens supporting them defined by
+    :param deletion_cutoff
+    :returns a new list of nodes lacking the pruned nodes in all_nodes"""
     nodes_to_delete = set()
-    #     filtered_nodes = copy(all_nodes)
-    #     filtered_nodes.remove(1)
-    #     assert len(all_nodes) != len(filtered_nodes)
     for node in all_nodes:
         if len(node.specimens) <= deletion_cutoff:
             delete_node(node, deletion_cutoff)  # TODO: check if this will orphan
@@ -224,33 +249,31 @@ def neglect_nodes(all_nodes, deletion_cutoff=FILTER_THRESHOLD):
     return filtered_nodes
 
 
-
-
 def split_one_group(prev_node, anchor, next_node):
-    """ Called when up.specimens == down.specimens"""
-    # Comment: That is actually the case we want to split up to obtain longer blocks later
-    # Extension of full windows will take care of potential loss of information later
-    my_specimens = copy(anchor.specimens)
-    if prev_node is not NOTHING_NODE:  # normal case
+    """ Called when up.specimens == down.specimens
+    Comment: That is actually the case we want to split up to obtain longer blocks later
+    Extension of full windows will take care of potential loss of information later"""
+    my_specimens = copy(anchor.specimens)  # important to copy or side effects occur
+    if prev_node is not Node.NOTHING:  # normal case
         my_specimens = my_specimens.intersection(prev_node.specimens)
-    if next_node is not NOTHING_NODE:  # normal case
+    if next_node is not Node.NOTHING:  # normal case
         my_specimens = my_specimens.intersection(next_node.specimens)
-    if prev_node is NOTHING_NODE and next_node is NOTHING_NODE:  # exceptional: both are nothing node
+    if prev_node is Node.NOTHING and next_node is Node.NOTHING:  # exceptional: both are nothing node
         my_specimens = copy(anchor.specimens)
-        # TODO: why are we removing all specimens that transition to nothing?
+        # removing all specimens that transition to nothing
         for n in anchor.downstream.keys():
-            if n is NOTHING_NODE:  # remove dead leads
+            if n is Node.NOTHING:  # remove dead leads
                 my_specimens -= n.specimens
         for n in anchor.upstream.keys():
-            if n is NOTHING_NODE:  # remove dead leads
+            if n is Node.NOTHING:  # remove dead leads
                 my_specimens -= n.specimens
 
     my_start, my_end = prev_node.start, next_node.end
     my_upstream, my_downstream = copy(prev_node.upstream), copy(next_node.downstream)
-    if NOTHING_NODE is prev_node:  # Rare case
+    if Node.NOTHING is prev_node:  # Rare case
         my_start = anchor.start
         my_upstream = copy(anchor.upstream)
-    if NOTHING_NODE is next_node:  # Rare case
+    if Node.NOTHING is next_node:  # Rare case
         my_end = anchor.end
         my_downstream = copy(anchor.downstream)
 
@@ -268,7 +291,6 @@ def split_one_group(prev_node, anchor, next_node):
     for n in suspects:
         update_transition(n)
     new.validate()
-    #TODO: Delete nodes with zero specimens from the Graph?
     return new
 
 
@@ -276,41 +298,46 @@ def update_neighbor_pointers(new_node):
     """Ensure that my new upstream pointers have matching downstream pointers in neighbors,
     and vice versa.  This does not set correct transition rates, it only makes the nodes connected."""
     for n in new_node.upstream.keys():
-        if n is not NOTHING_NODE:
+        if n is not Node.NOTHING:
             n.downstream[new_node] = 1
     for n in new_node.downstream.keys():
-        if n is not NOTHING_NODE:
+        if n is not Node.NOTHING:
             n.upstream[new_node] = 1
 
 
 def split_groups(all_nodes: List[Node]):
-    """This is called crossmerge in the R code"""
+    """When two haplotypes have a locus in common with no variation, then the graph represents
+    this with a single anchor node flanked by 2 haplotypes on either side.  This means 5 Nodes
+    are present where 2 would suffice.  Split groups splits the anchor node and gives pieces
+    to each haplotype; reducing 5 Nodes to 2.
+
+    Note: This is called crossmerge in the R code.
+    TODO: Ideally, the database would retain some record of how many nucleotides are shared between
+    the two new haplotype nodes."""
     length = len(all_nodes)  # size of global_nodes changes, necessitating this weird loop
     for n in range(length):
         node = all_nodes[n]
         # check if all transition upstream match with one of my downstream nodes
-        # if set(node.upstream.values()) == set(node.downstream.values()): WHY?
         if len(node.specimens) > 0:
             # Matchup upstream and downstream with specimen identities
             for up in tuple(node.upstream.keys()):
                 for down in tuple(node.downstream.keys()):
                     set1 = copy(up.specimens)
                     set2 = copy(down.specimens)
-                    if up is NOTHING_NODE:
+                    if up is Node.NOTHING:
                         set1 = copy(node.specimens)
                         for index in tuple(node.upstream.keys()):
-                            if index is not NOTHING_NODE:
+                            if index is not Node.NOTHING:
                                 set1.difference_update(index.specimens)
-                    if down is NOTHING_NODE:
+                    if down is Node.NOTHING:
                         set2 = copy(node.specimens)
                         for index in tuple(node.downstream.keys()):
-                            if index is not NOTHING_NODE:
+                            if index is not Node.NOTHING:
                                 set2.difference_update(index.specimens)
 
                     if set1 == set2 and len(set1) > 0:
                         new_node = split_one_group(up, node, down)
                         all_nodes.append(new_node)
 
-    filtered = neglect_nodes(all_nodes, 0)
+    filtered = neglect_nodes(all_nodes, 0)  # Delete nodes with zero specimens from the Graph?
     return filtered
-
