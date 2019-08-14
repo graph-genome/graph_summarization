@@ -4,6 +4,7 @@ Django==2.2.1
 sqlparse==0.3.0
 numpy==1.16.2
 networkx==2.2
+dataclasses==0.6
 
 
 # To setup Django database file run python manage.py migrate.  db.sqlite3 is not included in the repo.
