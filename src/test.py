@@ -168,7 +168,7 @@ class DAGifyTest(unittest.TestCase):
 
 #    @unittest.skip("Inversion is unsupported")
     def test_inversion2(self):
-        gfa = GFA.load_from_gfa("../test/inversion2.gfa")
+        gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "/inversion2.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
