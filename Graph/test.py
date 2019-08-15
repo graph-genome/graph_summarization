@@ -1,8 +1,9 @@
 import unittest
+from django.test import TestCase
 import os
 from os.path import join
 from Graph.gfa import GFA
-from Graph.models import Graph, Slice, Node, Path#, SlicedGraph
+from Graph.models import Slice, Node, GraphGenome, Path
 from Graph.sort import DAGify
 
 # Define the working directory
@@ -19,7 +20,9 @@ location_of_xg = join(BASE_DIR, "test_data","xg")
 
 
 a, b, c, d, e = 'a', 'b', 'c', 'd', 'e'  # Paths must be created first
-class GraphTest(unittest.TestCase):
+
+
+class GraphTest(TestCase):
     """Constructing a node with an existing Path object will modify that Path object (doubly linked)
     which means care must be taken when constructing Graphs.  From factory_input we have an example of
     pure python to Graph.build in one step.  In example_graph, we must first declare the Paths,
@@ -86,9 +89,12 @@ class GraphTest(unittest.TestCase):
 
 x,y,z,a = 'x', 'y', 'z', 'a'
 
-class DAGifyTest(unittest.TestCase):
+class DAGifyTest(TestCase):
     """ test class of sort.py
     """
+    # def tearDown(self) -> None:
+    #     # Cascade delete all test DB entries
+    #     GraphGenome.objects.get_queryset(name__contains=os.path.join(PATH_TO_TEST_DATA)).delete()
 
     def test_dagify(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
@@ -176,7 +182,7 @@ class DAGifyTest(unittest.TestCase):
 
 
 
-class GFATest(unittest.TestCase):
+class GFATest(TestCase):
     """ test class of gfa.py
     """
 
