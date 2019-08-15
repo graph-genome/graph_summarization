@@ -103,14 +103,14 @@ class HaploTest(unittest.TestCase):
                      ['C', {a, b, d}, '', {c}],  # [3] repeated from [1] SNP
         """
         nodes = [
-            Node(91, Point(1), Point(1), {1,2,4}),
+            Node(91, Point(1), Point(1), {1, 2, 4}),
             Node(92, Point(1), Point(1), {3}),
-            Node(93, Point(2), Point(2), {1,2,3,4}),  # [2] anchor
-            Node(94, Point(3), Point(3), {1,2,4}),
+            Node(93, Point(2), Point(2), {1, 2, 3, 4}),  # [2] anchor
+            Node(94, Point(3), Point(3), {1, 2, 4}),
             Node(95, Point(3), Point(3), {3}),
             # additional bracketing to anchor
-            Node(90, Point(0), Point(0), {1,2,3,4}),
-            Node(96, Point(4), Point(4), {1,2,3,4})
+            Node(90, Point(0), Point(0), {1, 2, 3, 4}),
+            Node(96, Point(4), Point(4), {1, 2, 3, 4})
         ]
         # connections
         nodes[5].downstream[nodes[0]] = 3

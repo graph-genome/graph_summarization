@@ -11,18 +11,20 @@ Browser for Graph Genomes built with VG.  Provides visualization for variation w
 # Developer Instructions
 **Environment**: [Anaconda 3.7 ](https://www.anaconda.com/distribution/)  
 Ggfapy etc. does not have an anaconda package, so it's necessary to use pip:  
-`pip install -r requirements.txt`  
+`pip install -r requirements_dev.txt`  
 
 
 **IDE:**  Pycharm Professional 2019.1 available for free for academics. 
 * Travis CI - automatically runs tests on master and development branches
 * Jupyter Notebook - run from the same Anaconda environment.  Notebooks are useful for prototyping, mature code gets moved to .py files for reuse.  They can be matured into a user manual.
 
-**Django:** This project uses django for its relational database.  db.sqlite3 is not included in the repo.  To setup Django database file run  
+**Django:** This project uses django for its relational database.  db.sqlite3 is not included in the repo.  You will need a super user to be able to browse the database in the administrator backend.  To setup Django database file run  
 ```
 python manage.py migrate
 python manage.py createsuperuser
 ```
+In development, changes to the models.py need a new migration created using  
+`python manage.py makemigrations`
 
 
 #### Branches

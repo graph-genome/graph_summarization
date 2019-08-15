@@ -17,8 +17,8 @@ def first(iterable):
 
 
 class Point:
-    def __init__(self, snp, bp=0):
-        self.snp, self.bp = snp, bp
+    def __init__(self, snp):
+        self.snp = snp
 
     @property
     def window(self):
@@ -27,7 +27,10 @@ class Point:
 
 class Node:
     """This definition of Node is designed to be equivalent to the R code HaploBlocker Nodes.
-    It has no concept of strand, CNV.  It uses an absolute Start and End position, but those
+    This will be combined with the VG definition of Graph.models.Node and extended to support the
+    concept of summarization layers.
+
+    Currently, It has no concept of strand, CNV.  It uses an absolute Start and End position, but those
     are not referenced very often.
     Critically, it needs Node.NOTHING which is used frequently to mark specimens whose
     upstream or downstream nodes have been pruned.  The usage of Node.NOTHING is equivalent to
@@ -87,6 +90,12 @@ class Node:
         return len(self.downstream) == 1 and first(self.downstream).is_nothing()
 
 
+# Node.NOTHING is essential "Not Applicable" when used to track transition rates between nodes.
+# Node.NOTHING is an important concept to Haploblocker, used to track upstream and downstream
+# that transitions to an unknown or untracked state.  As neglect_nodes removes minority
+# allele nodes, there will be specimens downstream that "come from" Node.NOTHING, meaning their
+# full history is no longer tracked.  Node.NOTHING is a regular exception case for missing data,
+# the ends of chromosomes, and the gaps between haplotype blocks.
 Node.NOTHING = Node(-1, Point(None), Point(None))
 
 
@@ -118,8 +127,8 @@ def get_unique_signatures(individuals, start_locus):
     for individual in individuals:
         sig = signature(individual, start_locus)
         if sig not in unique_blocks:
-            unique_blocks[sig] = Node(len(unique_blocks), Point(start_locus // BLOCK_SIZE, start_locus),
-                                      Point(start_locus // BLOCK_SIZE, start_locus + BLOCK_SIZE))  # TODO: -1?
+            unique_blocks[sig] = Node(len(unique_blocks), Point(start_locus // BLOCK_SIZE),
+                                      Point(start_locus // BLOCK_SIZE))  # TODO: -1?
     return unique_blocks
 
 

@@ -225,17 +225,25 @@ class Graph:
         raise TypeError("Graphs can only compare with other Graphs", type(representation))
 
     def load_from_pickle(self, file: str):
+        """Pickle is a python specific file that dumps the exact state of a python objects
+        from memory."""
         self = pickle.load(file)
 
     def load_from_xg(self, file: str, xg_bin: str):
+        """XG is a graph format used by VG (variation graph).  This method builds a
+        database GraphGenome to exactly mirror the contents of an XG file."""
         from Graph.gfa import GFA
         gfa = GFA.load_from_xg(file, xg_bin)
         self = gfa.to_graph()
 
     def save_as_pickle(self, file):
+        """Pickle is a python specific file that dumps the exact state of a python objects
+        from memory."""
         pickle.dump(self, file)
 
     def save_as_xg(self, file: str, xg_bin: str):
+        """XG is a graph format used by VG (variation graph).  This method exports
+        a database GraphGenome as an XG file."""
         from Graph.gfa import GFA
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)

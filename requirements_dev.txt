@@ -6,4 +6,4 @@ numpy==1.16.2
 networkx==2.2
 
 
-# To setup Django database file run python manage.py migrate.  db.sqlite3 is not included in the repo.
+# See README.md for instructions to setup Django database file.  db.sqlite3 is not included in the repo.
