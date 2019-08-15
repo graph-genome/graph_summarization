@@ -16,15 +16,6 @@ def first(iterable):
     return next(iter(iterable))
 
 
-class Point:
-    def __init__(self, snp):
-        self.snp = snp
-
-    @property
-    def window(self):
-        return self.snp // BLOCK_SIZE
-
-
 class Node:
     """This definition of Node is designed to be equivalent to the R code HaploBlocker Nodes.
     This will be combined with the VG definition of Graph.models.Node and extended to support the
@@ -38,34 +29,33 @@ class Node:
     purpose of summarization."""
     def __init__(self, ident, start, end, specimens=None, upstream=None, downstream=None):
         self.ident = ident
-        self.start = start  # Point()
-        self.end = end  # Point()
+        self.start = start  # bp, arbitrary coordinates, used for debugging
+        self.end = end  # bp, arbitrary coordinates, used for debugging
         self.specimens = set() if specimens is None else specimens
         self.upstream = defaultdict(lambda: 0) if not upstream else upstream
         # E.g. {Node.NOTHING:501, Node: 38,  Node: 201, Node: 3}
         self.downstream = defaultdict(lambda: 0) if not downstream else downstream
         # E.g. {Node: 38,  Node: 201, Node: 3}
-        assert self.start is not None and self.end is not None, self.details()
-        assert self.end.snp is not None or (self.end.snp is None and self.start.snp is None), self.details()
+        assert not self.is_nothing() or (self.end is None and self.start is None), self.details()
 
     def __len__(self):
         return len(self.specimens)
 
     def __repr__(self):
-        return "N%s(%s, %s)" % (str(self.ident), str(self.start.snp), str(self.end.snp))
+        return "N%s(%s, %s)" % (str(self.ident), str(self.start), str(self.end))
 
     def __hash__(self):
-        return hash(self.ident + 1) * hash(self.start.snp) * hash(self.end.snp)
+        return hash(self.ident + 1) * hash(self.start) * hash(self.end)
 
     def details(self):
-        return f"""Node{self.ident}: {self.start.snp} - {self.end.snp}
+        return f"""Node{self.ident}: {self.start} - {self.end}
         upstream: {dict((key, value) for key, value in self.upstream.items())}
         downstream: {dict((key, value) for key, value in self.downstream.items())}
         {len(self.specimens)} specimens: {self.specimens}"""
 
     def is_nothing(self):
         """Useful in Node class definition to check for Node.NOTHING"""
-        return self.ident == -1 and self.start.snp is None and self.end.snp is None
+        return self.ident == -1 and self.start is None and self.end is None
 
     def validate(self):
         """Returns true if the Node has specimens and does not have any negative
@@ -84,7 +74,7 @@ class Node:
         return True
 
     def is_beginning(self) -> bool:
-        return self.start.snp == 0
+        return self.start == 0
 
     def is_end(self) -> bool:
         return len(self.downstream) == 1 and first(self.downstream).is_nothing()
@@ -96,7 +86,7 @@ class Node:
 # allele nodes, there will be specimens downstream that "come from" Node.NOTHING, meaning their
 # full history is no longer tracked.  Node.NOTHING is a regular exception case for missing data,
 # the ends of chromosomes, and the gaps between haplotype blocks.
-Node.NOTHING = Node(-1, Point(None), Point(None))
+Node.NOTHING = Node(-1, None, None)
 
 
 def read_data(file_path):
@@ -127,8 +117,9 @@ def get_unique_signatures(individuals, start_locus):
     for individual in individuals:
         sig = signature(individual, start_locus)
         if sig not in unique_blocks:
-            unique_blocks[sig] = Node(len(unique_blocks), Point(start_locus // BLOCK_SIZE),
-                                      Point(start_locus // BLOCK_SIZE))  # TODO: -1?
+            unique_blocks[sig] = Node(len(unique_blocks),
+                                      start_locus // BLOCK_SIZE,
+                                      start_locus // BLOCK_SIZE)  # Inclusive end
     return unique_blocks
 
 

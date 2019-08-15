@@ -4,7 +4,7 @@ import unittest
 import os
 # Create your tests here.
 # from HaploBlocker.models import Node, Path, Edge
-from HaploBlocker.haplonetwork import Node, Point, split_one_group
+from HaploBlocker.haplonetwork import Node, split_one_group
 from HaploBlocker.haplonetwork import read_data, get_all_signatures, build_individuals, get_unique_signatures, \
     populate_transitions, simple_merge, neglect_nodes, split_groups
 
@@ -103,14 +103,14 @@ class HaploTest(unittest.TestCase):
                      ['C', {a, b, d}, '', {c}],  # [3] repeated from [1] SNP
         """
         nodes = [
-            Node(91, Point(1), Point(1), {1, 2, 4}),
-            Node(92, Point(1), Point(1), {3}),
-            Node(93, Point(2), Point(2), {1, 2, 3, 4}),  # [2] anchor
-            Node(94, Point(3), Point(3), {1, 2, 4}),
-            Node(95, Point(3), Point(3), {3}),
+            Node(91, 1, 1, {1, 2, 4}),
+            Node(92, 1, 1, {3}),
+            Node(93, 2, 2, {1, 2, 3, 4}),  # [2] anchor
+            Node(94, 3, 3, {1, 2, 4}),
+            Node(95, 3, 3, {3}),
             # additional bracketing to anchor
-            Node(90, Point(0), Point(0), {1, 2, 3, 4}),
-            Node(96, Point(4), Point(4), {1, 2, 3, 4})
+            Node(90, 0, 0, {1, 2, 3, 4}),
+            Node(96, 4, 4, {1, 2, 3, 4})
         ]
         # connections
         nodes[5].downstream[nodes[0]] = 3
