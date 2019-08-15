@@ -1,9 +1,10 @@
-[![Build Status](https://travis-ci.org/subwaystation/vgbrowser.svg?branch=master)](https://travis-ci.org/subwaystation/vgbrowser)
+[![Build Status](https://travis-ci.org/graph-genome/vgbrowser.svg?branch=master)](https://travis-ci.org/graph-genome/vgbrowser)
 
 # vgbrowser
 Browser for Graph Genomes built with VG.  Provides visualization for variation within a species of plant or animal. Designed to scale up to thousands of specimens and provide useful visualizations.
 
-**Backend:** Toshiyuki Yokoyama
+**Backend:** Toshiyuki Yokoyama \
+**Client-Server-Communication and Drawing:** Simon Heumos \
 **Algorithms and Design:** Josiah Seaman
 
 

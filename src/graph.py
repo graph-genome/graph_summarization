@@ -314,7 +314,7 @@ class SlicedGraph(Graph):
         if not self.paths:
             return self
         dagify = DAGify(self.paths)
-        profile = dagify.recursive_merge(0)
+        profile = dagify.generate_profiles(0)
         slices = dagify.to_slices(profile)
         self.slices = slices
         return self
