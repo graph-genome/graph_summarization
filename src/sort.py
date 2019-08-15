@@ -210,6 +210,6 @@ class DAGify:
         if len(current_slice.nodes) > 0:
             all_path_set = set([x for x in current_paths])
             if profiles[-1].candidate_paths - all_path_set != set():
-                current_slice.add_node(NodeTraversal(Node("", profile[-1].candidate_paths - all_path_set)))
+                current_slice.add_node(NodeTraversal(Node("", profiles[-1].candidate_paths - all_path_set)))
             factory_input.append(current_slice)
         return factory_input

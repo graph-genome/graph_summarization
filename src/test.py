@@ -154,8 +154,8 @@ class DAGifyTest(unittest.TestCase):
         gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "/inversion.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         x, y = Path("x"), Path("y")
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
@@ -171,8 +171,8 @@ class DAGifyTest(unittest.TestCase):
         gfa = GFA.load_from_gfa("../test/inversion2.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         x, y = Path("x"), Path("y")
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
@@ -187,8 +187,8 @@ class DAGifyTest(unittest.TestCase):
         gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "/nested_inv.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         x, y, z = Path("x"), Path("y"), Path("z")
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('T', [x, y, z]), "+")]),
@@ -204,8 +204,8 @@ class DAGifyTest(unittest.TestCase):
         gfa = GFA.load_from_gfa(PATH_TO_TEST_DATA + "/simple_inv.gfa")
         paths = gfa.to_paths
         dagify = DAGify(paths)
-        profile, rep_count = dagify.search_for_minimizing_replications()
-        graph = dagify.to_graph(profile)
+        profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
+        graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         x,y = Path("x"), Path("y")
         slices = SlicedGraph.load_from_slices([
             Slice([NodeTraversal(Node('CAAATAAG', [x, y]), "+")]),
