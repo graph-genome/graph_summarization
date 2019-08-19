@@ -23,6 +23,23 @@ class NodeMissingError(ValueError):
 class GraphGenome(models.Model):
     name = models.CharField(max_length=1000)
 
+    @property
+    def paths(self):
+        """Getter only.  Shortcut for DB."""
+        return self.path_set.all()
+
+    @property
+    def nodes(self):
+        """Getter only.  Shortcut for DB."""
+        return self.node_set.all()
+
+    def save_as_xg(self, file: str, xg_bin: str):
+        """XG is a graph format used by VG (variation graph).  This method exports
+        a database GraphGenome as an XG file."""
+        from Graph.gfa import GFA
+        gfa = GFA.from_graph(self)
+        gfa.save_as_xg(file, xg_bin)
+
 
 class Node(models.Model):
     seq = models.CharField(max_length=255, blank=True)
@@ -147,8 +164,8 @@ class Path(models.Model):
         return hash(self.accession)
 
     @property
-    def nodes(self):
-        return NodeTraversal.objects.get(path=self).order_by('order')
+    def nodes(self) -> Iterable['NodeTraversal']:
+        return NodeTraversal.objects.filter(path=self).order_by('order').all()
 
     def append_gfa_nodes(self, nodes):
         assert hasattr(nodes[0], 'orient') and hasattr(nodes[0], 'name'), 'Expecting gfapy.Gfa.path'
@@ -199,7 +216,8 @@ class NodeTraversal(models.Model):
         """Checks the largest 'order' value in the current path and increments by 1.
         IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
         or get_or_create"""
-        # self.order = self.path.nodetraversal_set.all().order_by('-order').first().order + 1
+        last_traversal = self.path.nodetraversal_set.all().order_by('-order').first()
+        self.order = 0 if not last_traversal else last_traversal.order + 1
         super(NodeTraversal, self).save(**kwargs)
 
 
@@ -239,13 +257,6 @@ class Graph:
         """Pickle is a python specific file that dumps the exact state of a python objects
         from memory."""
         pickle.dump(self, file)
-
-    def save_as_xg(self, file: str, xg_bin: str):
-        """XG is a graph format used by VG (variation graph).  This method exports
-        a database GraphGenome as an XG file."""
-        from Graph.gfa import GFA
-        gfa = GFA.from_graph(self)
-        gfa.save_as_xg(file, xg_bin)
 
     def append_node_to_path(self, node_id, strand, path_name, path_index):
         """This is the preferred way to build a graph in a truly non-linear way.

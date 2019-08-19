@@ -104,38 +104,34 @@ class GFA:
         self.gfa.to_file(file)
 
     @classmethod
-    def from_graph(cls, graph: Graph):
+    def from_graph(cls, graph: GraphGenome):
         """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
         for path in graph.paths:
-            node_series = ",".join([traverse.node.id + traverse.strand for traverse in path.nodes])
+            node_series = ",".join([traverse.node.name + traverse.strand for traverse in path.nodes])
             gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
-        for node in graph.nodes.values(): # in no particular order
-            gfa.add_line('\t'.join(['S', str(node.id), node.seq]))
+        for node in graph.nodes:  # in no particular order
+            gfa.add_line('\t'.join(['S', str(node.name), node.seq]))
         return cls(gfa, "from Graph")
 
-    def to_paths(self) -> List[Path]:
+    def to_paths(self) -> GraphGenome:
+        graph = self.to_graph()
+        return graph.paths
+
+    def to_graph(self) -> GraphGenome:
         # create parent object for this genome
         gdb = GraphGenome.objects.get_or_create(name=self.source_path)[0]
         for segment in self.gfa.segments:
             node_id = segment.name
             Node.objects.get_or_create(seq=segment.sequence, name=node_id, graph=gdb)
 
-        paths = []
         for path in self.gfa.paths:
-            p = Path(path.name, graph=gdb).save()
+            p = Path(accession=path.name, graph=gdb)
+            p.save()
             p.append_gfa_nodes(path.segment_names)
-            paths.append(p)
         # path_names = [path.name for path in self.gfa.paths]
         # list(Path.objects.get(name__in=path_names))
-        return paths
-
-    def to_graph(self) -> GraphGenome:
-        paths = self.to_paths()
-        if paths:
-            return paths[0].graph
-        else:
-            return None
+        return gdb
 
         # Extract all paths into graph
         # path_names = [p.name for p in self.gfa.paths]
@@ -149,20 +145,6 @@ class GFA:
         # return graph
 
 
-'''
-class XGWrapper:
-    @staticmethod
-    def save(gfa):
-        pass
-    
-    @staticmethod
-    def load(gfa):
-        pass
-
-class GraphStack:
-    def __init__(graphs: List[Graph]):
-        self.graphs = graphs
-'''
 
 if __name__ == "__main__":
     location_of_xg = sys.argv[0]

@@ -197,8 +197,8 @@ class GFATest(TestCase):
 
     def test_load_gfa_to_graph(self):
         graph, gfa = self.make_graph_from_gfa()
-        self.assertEqual(len(graph.paths), 3)
-        self.assertEqual(len(graph.nodes), 15)
+        self.assertEqual(graph.paths.count(), 3)
+        self.assertEqual(graph.nodes.count(), 15)
 
     # def test_gfa_to_sliced_graph(self):
     #     graph, gfa = self.make_graph_from_gfa()
