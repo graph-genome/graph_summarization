@@ -78,15 +78,14 @@ class GFA:
         process.wait()
         if process.returncode != 0:
             raise OSError()
-        graph = cls(gfa, file)
+        instance = cls(gfa, file)
         process.stdout.close()
-        return graph
+        return instance
 
     @classmethod
     def load_from_gfa(cls, file: str):
         gfa = gfapy.Gfa.from_file(file)
-        graph = cls(gfa, file)
-        return graph
+        return cls(gfa, file)
 
     #    def save_as_pickle(self, outfile: str):
     #        with open(outfile, 'wb') as pickle_file:
@@ -119,32 +118,15 @@ class GFA:
         return graph.paths
 
     def to_graph(self) -> GraphGenome:
-        # create parent object for this genome
+        """Create parent object for this genome and save it in the database.
+        This can create duplicates appended in Paths if it is called twice."""
         gdb = GraphGenome.objects.get_or_create(name=self.source_path)[0]
         for segment in self.gfa.segments:
-            node_id = segment.name
-            Node.objects.get_or_create(seq=segment.sequence, name=node_id, graph=gdb)
+            Node.objects.get_or_create(seq=segment.sequence, name=(segment.name), graph=gdb)
 
         for path in self.gfa.paths:
             p = Path(accession=path.name, graph=gdb)
             p.save()
             p.append_gfa_nodes(path.segment_names)
-        # path_names = [path.name for path in self.gfa.paths]
-        # list(Path.objects.get(name__in=path_names))
         return gdb
 
-        # Extract all paths into graph
-        # path_names = [p.name for p in self.gfa.paths]
-        # graph = Graph(path_names)  # Paths can be empty at start
-        # for path in self.gfa.paths:
-        #     for path_index, node in enumerate(path.segment_names):
-        #         graph.append_node_to_path(node.name, node.orient, path.name, path_index)
-        # for segment in self.gfa.segments:
-        #     graph.nodes[segment.name].seq = segment.sequence
-        # graph.paths = self.to_paths()
-        # return graph
-
-
-
-if __name__ == "__main__":
-    location_of_xg = sys.argv[0]

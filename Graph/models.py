@@ -1,13 +1,7 @@
 from typing import List, Iterable
-from itertools import zip_longest
-import pickle
-import sys
-from uuid import uuid1
-
 from django.db import models
-
-from Graph.utils import keydefaultdict
 from Utils.models import CustomSaveManager
+
 
 # GraphGenome specific error classes for more informative error catching
 class NoAnchorError(ValueError):
@@ -33,12 +27,42 @@ class GraphGenome(models.Model):
         """Getter only.  Shortcut for DB."""
         return self.node_set.all()
 
+    def __repr__(self):
+        """Warning: the representation strings are very sensitive to whitespace"""
+        return f"Graph: {self.name}\n{self.path_set.count()} paths  {self.node_set.count()} nodes."
+
+    def __eq__(self, other):
+        if isinstance(other, GraphGenome):
+            return other.node_set.count() == self.node_set.count() and \
+                   other.path_set.count() == self.path_set.count()  # other.name == self.name and \
+        return False
+
+    @classmethod
+    def load_from_xg(cls, file: str, xg_bin: str) -> 'GraphGenome':
+        """XG is a graph format used by VG (variation graph).  This method builds a
+        database GraphGenome to exactly mirror the contents of an XG file."""
+        from Graph.gfa import GFA
+        gfa = GFA.load_from_xg(file, xg_bin)
+        return gfa.to_graph()
+
     def save_as_xg(self, file: str, xg_bin: str):
         """XG is a graph format used by VG (variation graph).  This method exports
         a database GraphGenome as an XG file."""
         from Graph.gfa import GFA
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
+
+    def append_node_to_path(self, node_id, strand, path_name) -> None:
+        """This is the preferred way to build a graph in a truly non-linear way.
+        Nodes will be created if necessary.
+        NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
+        (order independent)."""
+        if node_id not in self.nodes:  # hasn't been created yet, need to retrieve from dictionary of guid
+            if isinstance(node_id, str):
+                self.nodes[node_id] = Node('', [], node_id)
+            else:
+                raise ValueError("Provide the id of the node, not", node_id)
+        Path.objects.get(name=path_name).append_node(Node.objects.get(name=node_id), strand)
 
 
 class Node(models.Model):
@@ -49,14 +73,14 @@ class Node(models.Model):
     class Meta:
         unique_together = ['graph', 'name']
 
-    # def __len__(self):
-    #     return nodetraversal_set.count()
-    #
+    def __len__(self):
+        return self.nodetraversal_set.count()
+
     # def __repr__(self):
     #     """Paths representation is sorted because set ordering is not guaranteed."""
     #     return repr(self.seq) + \
     #     ', {' + ', '.join(str(i) for i in list(self.paths)) + '}'
-    #
+
     # def __eq__(self, other):
     #     if not isinstance(other, Node):
     #         print("Warn: comparing Node and ", type(other), other)
@@ -64,82 +88,10 @@ class Node(models.Model):
     #     return self.seq == other.seq and self.paths == other.paths  # and self.id == other.id
 
     def __hash__(self):
-        return hash(self.seq)
-
-    # def append_path(self, path):
-    #     """Instead: Use Path.append_node if possible"""
-    #     assert isinstance(path, Path), path
-    #     NodeTraversal.objects.create(self, path)
+        return (hash(self.seq) + 1) * hash(self.name)
 
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
-
-    # # Typing is picky about order of declaration, but strings bypass this PEP484
-    # def merge_minor(self, minor_allele: 'Node') -> 'Node':
-    #     m = Node(self.seq, self.paths.union(minor_allele.paths))
-    #     # TODO: penalize paths with nucleotide mismatch
-    #     return m
-    #
-    # def intersection(self, downstream: 'Node') -> 'Node':
-    #     m = Node(self.seq + downstream.seq,
-    #              self.paths.intersection(downstream.paths))
-    #     return m
-    #
-    # def union(self, downstream: 'Node') -> 'Node':
-    #     return Node(self.seq + downstream.seq,
-    #              self.paths.union(downstream.paths))
-
-class Slice:
-    def __init__(self, nodes: Iterable[Node]):
-        self.nodes = set(nodes)
-
-    def add_node(self, node: Node):
-        self.nodes.add(node)
-
-    def alternatives(self, main):
-        return self.nodes.difference({main})
-
-    def bystanders(self, first, second):
-        return self.nodes.difference({first, second})
-
-    def __len__(self):
-        return len(self.nodes)
-
-    def __repr__(self):
-        # return '{' + ', '.join(str(i) for i in sorted(list(self.nodes))) + '}'
-        return list(self.nodes).__repr__()  # '['+ ','.join(self.paths)+']'
-
-    def __eq__(self, other):
-        if isinstance(other, Slice):
-            # all(a==b for a,b in zip_longest(self.nodes,other.nodes)) # order dependent
-            if not self.nodes == other.nodes:
-                print(self.nodes, other.nodes, sep='\n')
-            return self.nodes == other.nodes
-        else:
-            print("Warn: comparing Slice and ", type(other), other)
-            return False
-
-    def __iter__(self):
-        return iter(self.nodes)
-
-    def primary(self):
-        return max(self.nodes, key=len)  # When they're the same size, take the other
-    biggest = primary  # alias method
-
-    def secondary(self):
-        if len(self.nodes) < 2:
-            raise NodeMissingError("Secondary requested when there is no alternative", self.nodes)
-        biggest = self.primary()
-        return max((x for x in self.nodes if x != biggest), key=len)  # When they're the same size, take the next one
-
-    def smallest(self):
-        if len(self.nodes) < 2:
-            raise NodeMissingError("Smallest node requested when there is no alternative", self.nodes)
-        biggest = self.primary()
-        return min((x for x in self.nodes if x != biggest),
-                   key=len)  # when they're the same size it will take the last listed
-
-    version = 1.0
 
 
 class Path(models.Model):
@@ -147,8 +99,11 @@ class Path(models.Model):
     was sequenced.  A path visits a series of nodes and the ordered concatenation of the node
     sequences is the accession's genome.  Create Paths first from accession names, then append
     them to Nodes to link together."""
-    accession = models.CharField(unique=True, max_length=1000)  # one path per accession
+    accession = models.CharField(max_length=1000)  # one path per accession
     graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ['graph', 'accession']
 
     def __getitem__(self, path_index):
         return self.nodes[path_index]
@@ -173,10 +128,10 @@ class Path(models.Model):
             NodeTraversal(node=Node.objects.get(name=node.name),
                           path=self, strand=node.orient).save()
 
-    def append_node(self, node: Node, path_index, strand: str):
+    def append_node(self, node: Node, strand: str):
         """This is the preferred way to build a graph in a truly non-linear way.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node (order independent)."""
-        NodeTraversal(node, self, strand, path_index).save()
+        NodeTraversal(node=node, path=self, strand=strand).save()
 
     # @classmethod
     # def build(cls, name: str, seq_of_nodes: List[str]):
@@ -216,149 +171,8 @@ class NodeTraversal(models.Model):
         """Checks the largest 'order' value in the current path and increments by 1.
         IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
         or get_or_create"""
-        last_traversal = self.path.nodetraversal_set.all().order_by('-order').first()
-        self.order = 0 if not last_traversal else last_traversal.order + 1
+        if self.order is None:
+            last_traversal = self.path.nodetraversal_set.all().order_by('-order').first()
+            self.order = 0 if not last_traversal else last_traversal.order + 1
         super(NodeTraversal, self).save(**kwargs)
 
-
-class Graph:
-    def __init__(self, paths: Iterable = None):
-        # This can create orphan Nodes with no traversals
-        self.nodes = keydefaultdict(lambda key: Node(key, []))  # node id = Node object
-        if all(isinstance(x, str) for x in paths):
-            self.paths = {x: Path(x) for x in paths}
-        elif all(isinstance(x, Path) for x in paths):
-            self.paths = {path.accession: path for path in paths}
-        else:
-            self.paths = {}
-
-    def __repr__(self):
-        """Warning: the representation strings are very sensitive to whitespace"""
-        return self.paths.__repr__()
-
-    def __eq__(self, representation):
-        if isinstance(representation, Graph):
-            return all(path_a == path_b for path_a, path_b in zip_longest(self.paths, representation.paths))
-        raise TypeError("Graphs can only compare with other Graphs", type(representation))
-
-    def load_from_pickle(self, file: str):
-        """Pickle is a python specific file that dumps the exact state of a python objects
-        from memory."""
-        self = pickle.load(file)
-
-    def load_from_xg(self, file: str, xg_bin: str):
-        """XG is a graph format used by VG (variation graph).  This method builds a
-        database GraphGenome to exactly mirror the contents of an XG file."""
-        from Graph.gfa import GFA
-        gfa = GFA.load_from_xg(file, xg_bin)
-        self = gfa.to_graph()
-
-    def save_as_pickle(self, file):
-        """Pickle is a python specific file that dumps the exact state of a python objects
-        from memory."""
-        pickle.dump(self, file)
-
-    def append_node_to_path(self, node_id, strand, path_name, path_index):
-        """This is the preferred way to build a graph in a truly non-linear way.
-        Nodes will be created if necessary.
-        NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
-        (order independent)."""
-        if node_id not in self.nodes:  # hasn't been created yet, need to retrieve from dictionary of guid
-            if isinstance(node_id, str):
-                self.nodes[node_id] = Node('', [], node_id)
-            else:
-                raise ValueError("Provide the id of the node, not", node_id)
-        self.paths[path_name].append_node(self.nodes[node_id], path_index, strand)
-#
-#     def compute_slices(self):
-#         """Alias: Upgrades a Graph to a SlicedGraph"""
-#         return SlicedGraph.from_graph(self)
-# #
-#
-# class SlicedGraph(Graph):
-#     def __init__(self, paths):
-#         super(SlicedGraph, self).__init__(paths)
-#         """Factory for generating graphs from a representation"""
-#         self.slices = []  # only get populated by compute_slices()
-#
-#         if not self.slices:
-#             self.compute_slices()
-#
-#     def __eq__(self, representation):
-#         if isinstance(representation, SlicedGraph):
-#             return all(slice_a == slice_b for slice_a, slice_b in zip_longest(self.slices, representation.slices))
-#         return self == SlicedGraph.build(representation)  # build a graph then compare it
-#
-#     def __repr__(self):
-#         """Warning: the representation strings are very sensitive to whitespace"""
-#         return self.slices.__repr__()
-#
-#     def __getitem__(self, i):
-#         return self.slices[i]
-#
-#     @staticmethod
-#     def from_graph(graph):
-#         g = SlicedGraph([])
-#         g.paths = graph.paths  # shallow copy all relevant fields
-#         g.nodes = graph.nodes
-#         g.compute_slices_by_dagify()
-#         return g
-#
-#     def compute_slices(self):
-#         """TODO: This is a mockup stand in for the real method."""
-#         if not self.paths:  # nothing to do
-#             return self
-#         first_path = next(iter(self.paths.values()))
-#         for node_traversal in first_path:
-#             node = node_traversal.node
-#             self.slices.append(Slice([node]))
-#         return self
-#
-#     def compute_slices_by_dagify(self):
-#         """This method uses DAGify algorithm to compute slices."""
-#         from Graph.sort import DAGify  # help avoid circular import
-#
-#         if not self.paths:
-#             return self
-#         dagify = DAGify(self.paths)
-#         profile = dagify.generate_profiles(0)
-#         slices = dagify.to_slices(profile)
-#         self.slices = slices
-#         return self
-#
-#     @staticmethod
-#     def build(cmd):
-#         """This factory uses existing slice declarations to build a graph with Paths populated in the order
-#         that they are mentioned in the slices.  Currently, this is + only and does not support non-linear
-#         orderings.  Use Path.append_node() to build non-linear graphs."""
-#         if isinstance(cmd, str):
-#             cmd = eval(cmd)
-#         # preemptively grab all the path names from every odd list entry
-#         paths = {key for sl in cmd for i in range(0, len(sl), 2) for key in sl[i + 1]}
-#         graph = SlicedGraph(paths)
-#         graph.slices = []
-#         for sl in cmd:
-#             current_slice = []
-#             if isinstance(sl, Slice):
-#                 graph.slices.append(sl)
-#             else:
-#                 if isinstance(sl[0], Node):  # already Nodes, don't need to build
-#                     current_slice = sl
-#                 else:
-#                     try:
-#                         for i in range(0, len(sl), 2):
-#                             paths = [graph.paths[key] for key in sl[i + 1]]
-#                             node = Node(sl[i], paths)
-#                             node.add_paths(paths)
-#                             current_slice.append(node)
-#                     except IndexError:
-#                         raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
-#
-#                 graph.slices.append(Slice(current_slice))
-#         return graph
-#
-#     @classmethod
-#     def load_from_slices(cls, slices, paths):
-#         graph = cls(paths)
-#         graph.slices = slices
-#         return graph

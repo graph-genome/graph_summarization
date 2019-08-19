@@ -1,8 +1,8 @@
 import sys
 import dataclasses
-from typing import List
+from typing import List, Set
 
-from Graph.models import NodeTraversal, Path, Slice, Node
+from Graph.models import NodeTraversal, Path, Node
 
 
 @dataclasses.dataclass
