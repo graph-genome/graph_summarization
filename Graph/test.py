@@ -39,8 +39,6 @@ def build_from_test_slices(cmd: List):
                 paths_mentioned = [path_objs[key] for key in sl[i + 1]]
                 node, is_new = Node.objects.get_or_create(seq=sl[i], name=graph.name + str(node_count), graph=graph)
                 node_count += 1
-                print(is_new, node.name, sl[i + 1])
-                # node.save()
                 for path in paths_mentioned:
                     path.append_node(node, '+')
         except IndexError:
