@@ -49,8 +49,6 @@ def build_from_test_slices(cmd: List):
     return graph
 
 
-
-
 class GraphTest(TestCase):
     """Constructing a node with an existing Path object will modify that Path object (doubly linked)
     which means care must be taken when constructing Graphs.  From factory_input we have an example of
@@ -87,6 +85,7 @@ class GraphTest(TestCase):
         assert g1 == g_from_GFA, repr(g1) + '\n' + repr(g_from_GFA)
 
 
+@unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
     """ test class of sort.py
     """
