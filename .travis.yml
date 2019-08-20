@@ -3,7 +3,7 @@ dist: xenial
 
 language: python
 python:
-  - 3.7
+  - 3.7.3
 
 # Command to install dependencies, e.g. pip install -r requirements_dev.txt --use-mirrors
 install:
@@ -12,6 +12,8 @@ install:
 
 env:
   - DJANGO_VERSION=2.2.1
+  - DJANGO_SETTINGS_MODULE=vgbrowser.settings
 
 # Command to run tests, e.g. python setup.py test
-script: python -m unittest
+script:
+  - python -m unittest
