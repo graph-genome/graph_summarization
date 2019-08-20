@@ -11,7 +11,6 @@ install:
   - python manage.py migrate
 
 env:
-  - DJANGO_VERSION=2.2.1
   - DJANGO_SETTINGS_MODULE=vgbrowser.settings
 
 # Command to run tests, e.g. python setup.py test

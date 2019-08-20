@@ -1,4 +1,7 @@
 from django.test import TestCase
+
+import Graph.views
+from Graph.models import GraphGenome
 from vgbrowser.settings import BASE_DIR
 import unittest
 import os
@@ -27,12 +30,14 @@ class HaploTest(unittest.TestCase):
         print(os.getcwd())
         self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
 
-    def create_nodes(self):
+    def create_nodes(self, graph_name):
         """Tests that need a fresh graph must call create_nodes() FIRST!
         Graph summarization works by side effecting Node objects.  Tests can not run independently
         with order dependent side effects.  This method is slow, so don't use it unless you
-        need it."""
-        self.unique_signatures = get_all_signatures(self.alleles, self.individuals)
+        need it.
+        :param graph_name: """
+        graph = GraphGenome.objects.create(name=graph_name)
+        self.unique_signatures = get_all_signatures(self.alleles, self.individuals, graph)
         self.simplified_individuals = build_individuals(self.individuals, self.unique_signatures)
         # G = build_graph(simplified_individuals)
         populate_transitions(self.simplified_individuals)
@@ -49,12 +54,13 @@ class HaploTest(unittest.TestCase):
 
 
     def internal_build_individuals(self, alleles, individuals):
-        unique_signatures = get_all_signatures(alleles, individuals)
-        assert repr(unique_signatures[
-                        21]) == '{(0, 0, 0, 0, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 2, 2, 0, 2, 0, 2): N0(21, 21), (0, 0, 2, 0, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 2, 2, 0, 2, 0, 2): N1(21, 21), (0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0): N2(21, 21), (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0): N3(21, 21), (0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0): N4(21, 21), (0, 0, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 0, 0, 2, 0, 0, 0, 2): N5(21, 21), (0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0): N6(21, 21), (0, 0, 0, 0, 2, 2, 0, 2, 2, 2, 2, 2, 2, 0, 0, 2, 0, 0, 2, 2): N7(21, 21)}'
+        graph = GraphGenome.objects.create(name='internal_build_individuals')
+        unique_signatures = get_all_signatures(alleles, individuals, graph)
+        peek = repr(list(unique_signatures[21].values()))
+        assert peek == '[N0:21-21(00002202022222220202), N1:21-21(00202202022222220202), N2:21-21(00022200000000000000), N3:21-21(00000000000000000000), N4:21-21(00002200000000000000), N5:21-21(00022202022220020002), N6:21-21(02000000000000000000), N7:21-21(00002202222220020022)]', peek
         simplified_individuals = build_individuals(individuals, unique_signatures)
-        assert repr(simplified_individuals[500][
-                    :100]) == '[N2(0, 0), N2(1, 1), N2(2, 2), N2(3, 3), N2(4, 4), N2(5, 5), N3(6, 6), N3(7, 7), N3(8, 8), N2(9, 9), N0(10, 10), N1(11, 11), N2(12, 12), N2(13, 13), N2(14, 14), N2(15, 15), N3(16, 16), N3(17, 17), N4(18, 18), N3(19, 19), N5(20, 20), N3(21, 21), N3(22, 22), N10(23, 23), N4(24, 24), N3(25, 25), N4(26, 26), N3(27, 27), N1(28, 28), N1(29, 29), N4(30, 30), N3(31, 31), N21(32, 32), N1(33, 33), N1(34, 34), N1(35, 35), N1(36, 36), N1(37, 37), N1(38, 38), N1(39, 39), N1(40, 40), N1(41, 41), N1(42, 42), N1(43, 43), N1(44, 44), N1(45, 45), N1(46, 46), N1(47, 47), N1(48, 48), N1(49, 49), N1(50, 50), N1(51, 51), N1(52, 52), N1(53, 53), N1(54, 54), N1(55, 55), N1(56, 56), N1(57, 57), N1(58, 58), N1(59, 59), N1(60, 60), N1(61, 61), N1(62, 62), N1(63, 63), N1(64, 64), N1(65, 65), N1(66, 66), N1(67, 67), N1(68, 68), N1(69, 69), N1(70, 70), N1(71, 71), N1(72, 72), N1(73, 73), N1(74, 74), N1(75, 75), N1(76, 76), N1(77, 77), N0(78, 78), N0(79, 79), N1(80, 80), N1(81, 81), N1(82, 82), N1(83, 83), N1(84, 84), N1(85, 85), N1(86, 86), N1(87, 87), N1(88, 88), N1(89, 89), N1(90, 90), N1(91, 91), N1(92, 92), N1(93, 93), N1(94, 94), N1(95, 95), N1(96, 96), N1(97, 97), N0(98, 98), N0(99, 99)]'
+        peek = repr(simplified_individuals[500][:100])
+        assert peek == '[N2:0-0(00000000000000000000), N2:1-1(00000000000000000000), N2:2-2(00000000000000000000), N2:3-3(00000000000000000000), N2:4-4(00000000000000000000), N2:5-5(00000000000000000000), N3:6-6(00000000000000000000), N3:7-7(00000000000000000000), N3:8-8(00000000000000000000), N2:9-9(00000000000000000000), N0:10-10(00000000000000000000), N1:11-11(00000000000000000000), N2:12-12(00000000000000000000), N2:13-13(00000000000000000000), N2:14-14(00000000000000000000), N2:15-15(00000000000000000000), N3:16-16(00000000000000000000), N3:17-17(00000000000000000000), N4:18-18(00000000000000000000), N3:19-19(00000000000000000000), N5:20-20(00000000000000000000), N3:21-21(00000000000000000000), N3:22-22(00000000000000000000), N10:23-23(00200000000000000000), N4:24-24(00002200222220002000), N3:25-25(02000222220002020222), N4:26-26(20022000002002220002), N3:27-27(22222202020222220000), N1:28-28(00000000000000000000), N1:29-29(00000000000000000022), N4:30-30(00002222222000002200), N3:31-31(00022222202000000000), N21:32-32(00000020202200022020), N1:33-33(02202220022020222000), N1:34-34(00020002000202222002), N1:35-35(22220002220022200022), N1:36-36(22222200000000000000), N1:37-37(00202002222220000200), N1:38-38(00000200000202022200), N1:39-39(02202000202202220000), N1:40-40(00020222200020000020), N1:41-41(20220020022200022200), N1:42-42(00000000000000000000), N1:43-43(00000000000000000000), N1:44-44(00000000000000000000), N1:45-45(00000000000000000000), N1:46-46(00000002220220020020), N1:47-47(00202220222220222202), N1:48-48(00000000000000000002), N1:49-49(20002200000002220022), N1:50-50(22020002002020202022), N1:51-51(02202222220222202000), N1:52-52(20000020000000000000), N1:53-53(00000000000000000000), N1:54-54(00000000000000000000), N1:55-55(00220220000200000220), N1:56-56(20000000202022022020), N1:57-57(20222022022202222220), N1:58-58(22022202222222020200), N1:59-59(22202200202220202220), N1:60-60(22020022220200022022), N1:61-61(20202220000220000220), N1:62-62(00022002000000000000), N1:63-63(00000220000000000000), N1:64-64(00000000000220200000), N1:65-65(00022020200000020022), N1:66-66(20020222222020200020), N1:67-67(00000000000000202222), N1:68-68(22222222000202222202), N1:69-69(22022222020020000022), N1:70-70(00002002220022222200), N1:71-71(22002020020202000000), N1:72-72(00022202000202220020), N1:73-73(22000000000000200020), N1:74-74(22220222220200202202), N1:75-75(00022202222200000000), N1:76-76(00000220220200200022), N1:77-77(02200202020020200000), N0:78-78(00002000000000000000), N0:79-79(00000000000000000000), N1:80-80(00000000000022220000), N1:81-81(00000000000000000000), N1:82-82(00022220200202202202), N1:83-83(20202222200202202202), N1:84-84(00000020000000000000), N1:85-85(00222022020000000002), N1:86-86(22020222020222222000), N1:87-87(00022222002020222022), N1:88-88(00002222000000000200), N1:89-89(00000000000000220022), N1:90-90(22020202200020222220), N1:91-91(00002000002220002222), N1:92-92(22200000000000000000), N1:93-93(00000000000000000000), N1:94-94(00202022200202222222), N1:95-95(22222202202020222222), N1:96-96(00222220200202222020), N1:97-97(22002202220222222022), N0:98-98(20222222222222020220), N0:99-99(20222222220222222002)]', peek
         assert len(simplified_individuals) == 501 and len(simplified_individuals[60]) == 1638
 
 
@@ -68,7 +74,7 @@ class HaploTest(unittest.TestCase):
 
     @unittest.skip
     def test_no_duplicate_nodes(self):
-        self.create_nodes()
+        self.create_nodes('test')
         unique_nodes = set()
         duplicates_found = 0
         for locus in self.simplified_individuals:
@@ -103,39 +109,21 @@ class HaploTest(unittest.TestCase):
                      ['C', {a, b, d}, '', {c}],  # [3] repeated from [1] SNP
         """
         nodes = [
-            Node(91, 1, 1, {1, 2, 4}),
-            Node(92, 1, 1, {3}),
-            Node(93, 2, 2, {1, 2, 3, 4}),  # [2] anchor
-            Node(94, 3, 3, {1, 2, 4}),
-            Node(95, 3, 3, {3}),
-            # additional bracketing to anchor
-            Node(90, 0, 0, {1, 2, 3, 4}),
-            Node(96, 4, 4, {1, 2, 3, 4})
+            ['90', {1, 2, 3, 4}], #[5]
+            ['91', {1, 2, 4}, '92', {3}],
+            ['93', {1, 2, 3, 4}],  # [2] anchor
+            ['94', {1, 2, 4}, '95', {3}], #[3] [4]
+            ['96', {1, 2, 3, 4}] #[6]
         ]
-        # connections
-        nodes[5].downstream[nodes[0]] = 3
-        nodes[5].downstream[nodes[1]] = 1
-        nodes[0].downstream[nodes[2]] = 3
-        nodes[1].downstream[nodes[2]] = 1
-        nodes[2].downstream[nodes[3]] = 3
-        nodes[2].downstream[nodes[4]] = 1
-        nodes[3].downstream[nodes[6]] = 3
-        nodes[4].downstream[nodes[6]] = 1
-        nodes[0].upstream[nodes[5]] = 3
-        nodes[1].upstream[nodes[5]] = 1
-        nodes[2].upstream[nodes[0]] = 3
-        nodes[2].upstream[nodes[1]] = 1
-        nodes[3].upstream[nodes[2]] = 3
-        nodes[4].upstream[nodes[2]] = 1
-        nodes[6].upstream[nodes[3]] = 3
-        nodes[6].upstream[nodes[4]] = 1
-        new_node = split_one_group(nodes[0], nodes[2], nodes[3])  # no mentions of minorities [1] or [4]
+        g = Graph.views.build_from_test_slices(nodes, '9')
+        first, anchor, third = g.node('91'), g.node('93'), g.node('94')
+        new_node = split_one_group(first, anchor, third)  # no mentions of minorities [1] or [4]
         print(new_node.details())
-        assert new_node in nodes[5].downstream and nodes[1] in nodes[5].downstream
-        assert nodes[0] not in nodes[5].downstream
-        assert nodes[5] in new_node.upstream and nodes[6] in new_node.downstream
-        assert new_node in nodes[6].upstream and nodes[4] in nodes[6].upstream
-        assert nodes[3] not in nodes[6].upstream
+        assert new_node in g.node('90').downstream and g.node('92') in g.node('90').downstream
+        assert g.node('91') not in g.node('90').downstream
+        assert g.node('90') in new_node.upstream and g.node('96') in new_node.downstream
+        assert new_node in g.node('96').upstream and g.node('95') in g.node('96').upstream
+        assert g.node('94') not in g.node('96').upstream
 
     def _test_split_groups(self, all_nodes):
         summary3 = split_groups(all_nodes)
@@ -144,7 +132,7 @@ class HaploTest(unittest.TestCase):
 
 
     def test_workflow(self):
-        self.create_nodes()
+        self.create_nodes('test')
         all_nodes = [node for window in self.unique_signatures for node in window.values()]  # think about referencing and deletion
         summary1 = self._test_simple_merge(all_nodes)
         summary2 = self._test_neglect_nodes(summary1)

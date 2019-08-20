@@ -1,4 +1,4 @@
-from typing import List, Iterable
+from typing import List, Iterable, Set
 from django.db import models
 from Utils.models import CustomSaveManager
 
@@ -64,10 +64,13 @@ class GraphGenome(models.Model):
                 raise ValueError("Provide the id of the node, not", node_id)
         Path.objects.get(name=path_name).append_node(Node.objects.get(name=node_id), strand)
 
+    def node(self, node_name):
+        return Node.objects.get(name=node_name, graph=self)
+
 
 class Node(models.Model):
     seq = models.CharField(max_length=255, blank=True)
-    name = models.CharField(primary_key=True, max_length=15)
+    name = models.CharField(max_length=15)
     graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
 
     class Meta:
@@ -92,6 +95,59 @@ class Node(models.Model):
 
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
+
+    @property
+    def specimens(self):
+        return self.nodetraversal_set
+
+    @property
+    def upstream(self) -> Set[int]:
+        traverses = self.nodetraversal_set.all()  # values_list('node__id', flat=True)
+        # Node.objects.filter(id__in=traverses).values_list('id', flat=True)
+        return set(t.upstream_id() for t in traverses)
+
+    @property
+    def downstream(self) -> Set[int]:
+        traverses = self.nodetraversal_set.all()
+        return set(t.downstream_id() for t in traverses)
+
+    def __repr__(self):
+        return "N%s(%s)" % (str(self.name), self.seq)
+
+    def details(self):
+        return f"""Node{self.name}: {self.seq}
+        upstream: {dict((key, value) for key, value in self.upstream.items())}
+        downstream: {dict((key, value) for key, value in self.downstream.items())}
+        {len(self.specimens)} specimens: {self.specimens}"""
+
+    def is_nothing(self):
+        """Useful in Node class definition to check for Node.NOTHING"""
+        return self.name == '-1'
+
+    def validate(self):
+        """Returns true if the Node has specimens and does not have any negative
+        transition values, raises an AssertionError otherwise."""
+        if not self.specimens:
+            assert self.specimens, "Specimens are empty" + self.details()
+        for node, weight in self.upstream.items():
+            if not node.is_nothing() and weight < 0:
+                print(self.details())
+                assert weight > -1, node.details()
+
+        for node, weight in self.downstream.items():
+            if not node.is_nothing() and weight < 0:
+                print(self.details())
+                assert weight > -1, node.details()
+        return True
+
+
+# Node.NOTHING is essential "Not Applicable" when used to track transition rates between nodes.
+# Node.NOTHING is an important concept to Haploblocker, used to track upstream and downstream
+# that transitions to an unknown or untracked state.  As neglect_nodes removes minority
+# allele nodes, there will be specimens downstream that "come from" Node.NOTHING, meaning their
+# full history is no longer tracked.  Node.NOTHING is a regular exception case for missing data,
+# the ends of chromosomes, and the gaps between haplotype blocks.
+Node.NOTHING = Node(-1)
 
 
 class Path(models.Model):
@@ -146,8 +202,6 @@ class Path(models.Model):
         return '\t'.join(['P', self.accession, "+,".join([x.node.name + x.strand for x in self.nodes]) + "+", ",".join(['*' for x in self.nodes])])
 
 
-
-
 class NodeTraversal(models.Model):
     """Link from a Path to a Node it is currently traversing.  Includes strand"""
     node = models.ForeignKey(Node, db_index=True, on_delete=models.CASCADE)
@@ -175,4 +229,33 @@ class NodeTraversal(models.Model):
             last_traversal = self.path.nodetraversal_set.all().order_by('-order').first()
             self.order = 0 if not last_traversal else last_traversal.order + 1
         super(NodeTraversal, self).save(**kwargs)
+
+    def fetch_neighbor(self, target_index):
+        query = NodeTraversal.objects.filter \
+            (path=self.path, order=target_index).values_list('node__id', flat=True)
+        if query:
+            return query[0]
+        return -1
+
+    def upstream_id(self):
+        target_index = self.order - 1
+        return self.fetch_neighbor(target_index)
+
+    def downstream_id(self):
+        target_index = self.order + 1
+        return self.fetch_neighbor(target_index)
+
+    def neighbor(self, target_index):
+        try:
+            return NodeTraversal.objects.get(path=self.path, order=target_index)
+        except NodeTraversal.DoesNotExist:
+            return None
+
+    def upstream(self):
+        target_index = self.order - 1
+        return self.neighbor(target_index)
+
+    def downstream(self):
+        target_index = self.order + 1
+        return self.neighbor(target_index)
 

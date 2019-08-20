@@ -1,15 +1,14 @@
 import unittest
-from datetime import datetime
 
 from django.test import TestCase
-from typing import List
 import os
 from os.path import join
 from Graph.gfa import GFA
-from Graph.models import Node, GraphGenome, Path
+from Graph.models import Node, Path
 from Graph.sort import DAGify
 
 # Define the working directory
+from Graph.views import build_from_test_slices
 from vgbrowser.settings import BASE_DIR
 PATH_TO_TEST_DATA = join(BASE_DIR, "test_data")
 location_of_xg = join(BASE_DIR, "test_data","xg")
@@ -17,34 +16,6 @@ location_of_xg = join(BASE_DIR, "test_data","xg")
 
 a, b, c, d, e = 'a', 'b', 'c', 'd', 'e'  # Paths must be created first
 x, y, z = 'x', 'y', 'z'
-
-
-def build_from_test_slices(cmd: List):
-    """This factory uses test data shorthand for linear graph slices to build
-    a database GraphGenome with all the necessary Paths and Nodes.  Path order populated in the order
-    that they are mentioned in the slices.  Currently, this is + only and does not support non-linear
-    orderings.  Use Path.append_node() to build non-linear graphs."""
-    if isinstance(cmd, str):
-        cmd = eval(cmd)
-    # preemptively grab all the path names from every odd list entry
-    graph = GraphGenome.objects.get_or_create(name='test_data')[0]  # + str(datetime.now())
-    node_count = 0
-    paths = {key for sl in cmd for i in range(0, len(sl), 2) for key in sl[i + 1]}
-    path_objs = {}
-    for path_name in paths:
-        path_objs[path_name] = Path.objects.get_or_create(graph=graph, accession=path_name)[0]
-    for sl in cmd:
-        try:
-            for i in range(0, len(sl), 2):
-                paths_mentioned = [path_objs[key] for key in sl[i + 1]]
-                node, is_new = Node.objects.get_or_create(seq=sl[i], name=graph.name + str(node_count), graph=graph)
-                node_count += 1
-                for path in paths_mentioned:
-                    path.append_node(node, '+')
-        except IndexError:
-            raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
-
-    return graph
 
 
 class GraphTest(TestCase):
@@ -214,9 +185,9 @@ class GFATest(TestCase):
         graph = graph2.to_graph()
         x,y,z = 'x','y','z'
         self.assertEqual(graph, build_from_test_slices([['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}],
-                                  ['C', {x, y, z}], ['TTG', {x, y, z}],
-                                 ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
-                                 ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]]))
+                                                        ['C', {x, y, z}], ['TTG', {x, y, z}],
+                                                        ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
+                                                        ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]]))
 
     @staticmethod
     def is_different(gfa1, gfa2):
