@@ -4,11 +4,11 @@ from django.test import TestCase
 import os
 from os.path import join
 from Graph.gfa import GFA
-from Graph.models import Node, Path
+from Graph.models import Node, Path, NodeTraversal
 from Graph.sort import DAGify
 
 # Define the working directory
-from Graph.views import build_from_test_slices
+from Graph.utils import build_graph_from_slices
 from vgbrowser.settings import BASE_DIR
 PATH_TO_TEST_DATA = join(BASE_DIR, "test_data")
 location_of_xg = join(BASE_DIR, "test_data","xg")
@@ -36,23 +36,37 @@ class GraphTest(TestCase):
 
     def test_graph_factory(self):
         original_test = [['ACGT', {a, b, c, d}],
-                        ['C', {a, b, d}, 'T', {c}],  # SNP
+                        ['C',   {a, b, d}, 'T', {c}],  # SNP
                         ['GGA', {a, b, c, d}],  # anchor
-                        ['C', {a, b, d}],  # [3] repeated from [1] SNP
+                        ['C',   {a, b, d}],  # [3] repeated from [1] SNP
                         ['AGTACG', {a, b, c}, 'CGTACT', {d}],  # [4] different membership from [3]
-                        ['TTG', {a, b, c, d}],  # [5] anchor
+                        ['TTG',    {a, b, c, d}],  # [5] anchor
                         ['A', {a, b}, 'C', {d, e}, 'T', {c}],  # [6] third allele
                         ['GG', {a, b}, 'TT', {c, d}],  # [7] equal size nodes
                         ['C', {a, b, c, e}, 'T', {d}],  # [8] path slip
                         ['C', {a, b, e}, 'T', {c, d}],  # [9] path slip
                         ['C', {a, b, c}, 'T', {d}],  # [10]path slip
                         ['TATA', {a, b, c, d}]]  # [11] anchor
-        g1, g2 = build_from_test_slices(original_test), build_from_test_slices(original_test)
+        g1, g2 = build_graph_from_slices(original_test), build_graph_from_slices(original_test)
         assert g1 == g2, \
             ('\n' + repr(g1) + '\n' + repr(g2))
         g_from_GFA = self.test_example_graph()  # comes from matching
         assert g1 == g_from_GFA, repr(g1) + '\n' + repr(g_from_GFA)
+        # TODO: stricter equality checks: currently just counting nodes
 
+    def test_summary_storage(self):
+        graph = self.test_example_graph()
+        parent = Path.objects.get(graph=graph, accession='a', zoom=0)
+        path = Path.objects.create(graph=graph, accession='a', zoom=1)
+        new_node = Node.objects.create(seq='ACGTCGGA', name='2*2', graph=graph)
+        Node.objects.filter(name__in=['1','2','4']).update(summarized_by=new_node)
+        assert new_node.children.count() == 3
+        for node in Node.objects.filter(name__in=['1','2','4']):
+            assert node.summarized_by_id == new_node.id
+        for i, node_name in enumerate(['2*2', '5', '6']):
+            current = graph.node(node_name)
+            NodeTraversal(node=current, path=path, strand='+', order=i).save()
+        assert NodeTraversal.objects.get(order=0, path=path).downstream().downstream().node.name == '6'
 
 @unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
@@ -184,10 +198,10 @@ class GFATest(TestCase):
         graph2 = GFA.load_from_xg(join(PATH_TO_TEST_DATA, "test.xg"), location_of_xg)
         graph = graph2.to_graph()
         x,y,z = 'x','y','z'
-        self.assertEqual(graph, build_from_test_slices([['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}],
-                                                        ['C', {x, y, z}], ['TTG', {x, y, z}],
-                                                        ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
-                                                        ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]]))
+        self.assertEqual(graph, build_graph_from_slices([['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}],
+                                                         ['C', {x, y, z}], ['TTG', {x, y, z}],
+                                                         ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
+                                                         ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]]))
 
     @staticmethod
     def is_different(gfa1, gfa2):

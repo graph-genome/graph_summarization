@@ -6,7 +6,7 @@ import subprocess
 import io
 import os
 import tempfile
-from Graph.models import *
+from Graph.models import Node, Path, GraphGenome
 
 
 def pairwise(iterable):

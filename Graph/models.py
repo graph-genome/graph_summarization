@@ -16,6 +16,8 @@ class NodeMissingError(ValueError):
 
 class GraphGenome(models.Model):
     name = models.CharField(max_length=1000)
+    #zoom = models.IntegerField()  Zoom level is defined in Paths only.
+    # Nodes can be shared between zoom levels.
 
     @property
     def paths(self):
@@ -69,9 +71,16 @@ class GraphGenome(models.Model):
 
 
 class Node(models.Model):
+    """Nodes are the fundamental content carriers for sequence.  A Path
+    can traverse nodes in any order, on both + and - strands.
+    Nodes can be utilized by Paths in multiple zoom levels.
+    Only first order Nodes (zoom=0) have sequences, but all have names which can be used
+    to fetch the node from GraphGenome.node()."""
     seq = models.CharField(max_length=255, blank=True)
     name = models.CharField(max_length=15)
     graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
+    summarized_by = models.ForeignKey('Node', null=True, blank=True, on_delete=models.SET_NULL,
+                                      related_name='children')
 
     class Meta:
         unique_together = ['graph', 'name']
@@ -157,9 +166,13 @@ class Path(models.Model):
     them to Nodes to link together."""
     accession = models.CharField(max_length=1000)  # one path per accession
     graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
+    zoom = models.IntegerField(default=0)  # Zoom level starts at 0 for nucleotide level and moves up
+    # Nodes can be shared between zoom levels.
+    summarized_by = models.ForeignKey('Path', related_name='summary_child',
+                                      blank=True, null=True, on_delete=models.SET_NULL)
 
     class Meta:
-        unique_together = ['graph', 'accession']
+        unique_together = ['graph', 'accession', 'zoom']
 
     def __getitem__(self, path_index):
         return self.nodes[path_index]
@@ -207,7 +220,9 @@ class NodeTraversal(models.Model):
     node = models.ForeignKey(Node, db_index=True, on_delete=models.CASCADE)
     path = models.ForeignKey(Path, db_index=True, on_delete=models.CASCADE, help_text='')
     strand = models.CharField(choices=[('+', '+'),('-', '-')], default='+', max_length=1)
-    order = models.IntegerField(help_text='Defines the order a path lists traversals')  # set automatically
+    # order is set automatically in the CustomSaveManager
+    order = models.IntegerField(help_text='Defines the order a path lists traversals. '
+                                          'The scale of order is not preserved between zoom levels.')
 
     objects = CustomSaveManager()
 

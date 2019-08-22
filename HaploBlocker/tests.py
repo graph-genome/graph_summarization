@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+import Graph.utils
 import Graph.views
 from Graph.models import GraphGenome
 from vgbrowser.settings import BASE_DIR
@@ -115,7 +116,7 @@ class HaploTest(unittest.TestCase):
             ['94', {1, 2, 4}, '95', {3}], #[3] [4]
             ['96', {1, 2, 3, 4}] #[6]
         ]
-        g = Graph.views.build_from_test_slices(nodes, '9')
+        g = Graph.utils.build_graph_from_slices(nodes, '9')
         first, anchor, third = g.node('91'), g.node('93'), g.node('94')
         new_node = split_one_group(first, anchor, third)  # no mentions of minorities [1] or [4]
         print(new_node.details())
