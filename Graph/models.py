@@ -105,19 +105,16 @@ class Node(models.Model):
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
 
-    @property
-    def specimens(self):
-        return self.nodetraversal_set
+    def specimens(self, zoom_level) -> Set[int]:
+        return self.nodetraversal_set.filter(path_zoom=zoom_level).value_list('path_id', flat=True)
 
-    @property
-    def upstream(self) -> Set[int]:
-        traverses = self.nodetraversal_set.all()  # values_list('node__id', flat=True)
+    def upstream(self, zoom_level) -> Set[int]:
+        traverses = self.nodetraversal_set.filter(path_zoom=zoom_level)  #.value_list('node_id', flat=True)
         # Node.objects.filter(id__in=traverses).values_list('id', flat=True)
         return set(t.upstream_id() for t in traverses)
 
-    @property
-    def downstream(self) -> Set[int]:
-        traverses = self.nodetraversal_set.all()
+    def downstream(self, zoom_level) -> Set[int]:
+        traverses = self.nodetraversal_set.filter(path_zoom=zoom_level).all()
         return set(t.downstream_id() for t in traverses)
 
     def __repr__(self):

@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 from collections import defaultdict
 from copy import copy
-from Graph.models import Node
+from Graph.models import Node, Path
 
 BLOCK_SIZE = 20
 FILTER_THRESHOLD = 4
@@ -33,7 +33,7 @@ def signature(individual, start_locus):
     return tuple(individual[start_locus: start_locus + BLOCK_SIZE])
 
 
-def get_unique_signatures(individuals, start_locus, current_graph):
+def nodes_from_unique_signatures(individuals, start_locus, current_graph):
     """A signature is a series of BLOCK_SIZE SNPs inside of a locus.  We want to know how many
     unique signatures are present inside of one locus.  A Node is created for each unique
     signature found.
@@ -44,41 +44,46 @@ def get_unique_signatures(individuals, start_locus, current_graph):
     for individual in individuals:
         sig = signature(individual, start_locus)
         if sig not in unique_blocks:
-            unique_blocks[sig] = Node(name=f'{len(unique_blocks)}:{start_locus // BLOCK_SIZE}-{start_locus // BLOCK_SIZE}',
+            unique_blocks[sig] = Node.objects.create(  # saves to Database
+                name=f'{len(unique_blocks)}:{start_locus // BLOCK_SIZE}-{start_locus // BLOCK_SIZE}',
                                       seq=''.join(str(x) for x in sig),
                                       graph=current_graph)
     return unique_blocks
 
 
-def get_all_signatures(alleles, individuals, current_graph):
-    unique_signatures = []
-    for locus_start in range(0, len(alleles) - BLOCK_SIZE, BLOCK_SIZE):  # discards remainder
-        sig = get_unique_signatures(individuals, locus_start, current_graph)
-        unique_signatures.append(sig)
-    return unique_signatures
+def build_all_slices(alleles, individuals, current_graph):
+    """Each item in this list is a slice, representing all the possible states for one locus.
+    Inside a slice is a set of Nodes, one for each unique 'signature' or sequence state.
+    Paths that all have the same state in this slice all reference the same Node object."""
+    slices = []
+    for slice_start in range(0, len(alleles) - BLOCK_SIZE, BLOCK_SIZE):  # discards remainder
+        nodes = nodes_from_unique_signatures(individuals, slice_start, current_graph)
+        slices.append(nodes)
+    return slices
 
 
-def build_individuals(individuals, unique_signatures):
-    """Describes an individual as a list of Nodes that individual visits.
-    simplified_individuals is a list of loci which contain a list of Nodes which each contain specimen
+def build_paths(individuals, unique_signatures):
+    """Describes an individual as a Path (list of Nodes) that the individual visits (NodeTraversals).
+    accessions is a list of loci which contain a list of Nodes which each contain specimen
     build nodes:  [0] first 4 are the 4 starting signatures in window 0.
     Nodes represent a collection of individuals with the same signature at that locus
     For each node list which individuals are present at that node"""
-    simplified_individuals = []
+    # TODO: It may be more performant to merge build_all_slices and build_paths so that global lists are never stored
+    accessions = []
     for i_specimen, specimen in enumerate(individuals):
-        my_simplification = []
+        my_path = Path.objects.create(accession=str(i_specimen))
         for w, window in enumerate(unique_signatures):  # the length of the genome
             sig = signature(specimen, w * BLOCK_SIZE)
-            my_simplification.append(unique_signatures[w][sig])
-        simplified_individuals.append(my_simplification)
-    return simplified_individuals
+            my_path.append_node(unique_signatures[w][sig], '+')
+        accessions.append(my_path)
+    return accessions
 
 
 def populate_transitions(simplified_individuals):
     """
     List transition rates from one node to all other upstream and downstream.
     This method populates Node.specimens and begins the process of side-effecting Nodes.
-    To rebuild a fresh Graph copy, you must start at get_all_signatures()
+    To rebuild a fresh Graph copy, you must start at build_all_slices()
     :param simplified_individuals:
     """
     for i, indiv in enumerate(simplified_individuals):
