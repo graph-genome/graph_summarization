@@ -2,7 +2,7 @@ import sys
 import dataclasses
 from typing import List, Set
 
-from Graph.models import NodeTraversal, Path, Node
+from Graph.models import NodeTraversal, Path, Node, GraphGenome
 
 
 @dataclasses.dataclass
@@ -32,22 +32,21 @@ class DAGify:
     """
     DAGify accepts a set of paths, and
     """
-    def __init__(self, paths: List[Path], nodes={}):
+    def __init__(self, graph: GraphGenome):
         """
         :type paths: List[Path], nodes: Set[Node]
         """
-        self.paths = paths
-        self.nodes = nodes
+        self.graph_genome = graph
 
     def generate_profiles_with_minimizing_replications(self) -> (List[Profile], int):
         """
-        Generate profiles with minimizing the number of node repication by trying to assign each path as a primary path one by one.
+        Generate profiles with minimizing the number of node replication by trying to assign each path as a primary path one by one.
         It returns profiles and whose number of replication.
         :return: Profiles and the number of replicated nodes.
         """
         min_rep = sys.maxsize
         profile = []
-        for i, _ in enumerate(self.paths):
+        for i in range(self.graph_genome.paths.count()):
             profile_candidate = self.generate_profiles(i)
             if min_rep > len([x.duplicate for x in profile_candidate if x.duplicate]):
                 min_rep = len([x.duplicate for x in profile_candidate if x.duplicate])
@@ -61,12 +60,15 @@ class DAGify:
         :return: a list of profiles
         """
         profile = []
-        for node_index in self.paths[primary_path_index].nodes:
+        # TODO: replace this with database queries.  Possibly pass in path, rather than an primary_path_index.
+        raise NotImplementedError()
+        primary_path = self.paths[primary_path_index]
+        for node_index in primary_path.nodes:
             if node_index.strand == "+":
-                profile.append(Profile(node_index, [self.paths[primary_path_index]], [], {self.paths[primary_path_index]}, False))
+                profile.append(Profile(node_index, [primary_path], [], {primary_path}, False))
             else:
                 profile.append(
-                    Profile(node_index, [], [self.paths[primary_path_index]], {self.paths[primary_path_index]}, False))
+                    Profile(node_index, [], [primary_path], {primary_path}, False))
         for i, path in enumerate(self.paths):
             if i == primary_path_index:
                 continue

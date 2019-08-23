@@ -120,10 +120,6 @@ class GFA:
             gfa.add_line('\t'.join(['S', str(node.name), node.seq]))
         return cls(gfa, "from Graph")
 
-    def to_paths(self) -> GraphGenome:
-        graph = self.to_graph()
-        return graph.paths
-
     def to_graph(self) -> GraphGenome:
         """Create parent object for this genome and save it in the database.
         This can create duplicates appended in Paths if it is called twice."""

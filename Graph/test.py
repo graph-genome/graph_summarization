@@ -74,7 +74,7 @@ class GraphTest(TestCase):
         assert path_pointers.count() == 1
 
 
-#@unittest.skip  # DAGify has not been converted to databases yet.
+@unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
     """ test class of sort.py
     """
@@ -84,16 +84,16 @@ class DAGifyTest(TestCase):
 
     def test_dagify(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile = dagify.generate_profiles(0)
 
         # self.assertEqual([['CAAATAAG', {x,y,z}], ['A', {y,z}, 'G', {x}], ['C', {x,y,z}], ['TTG', {x,y,z}], ['A', {z}, 'G', {x,y}], ['AAATTTTCTGGAGTTCTAT', {x,y,z}], ['T', {x,y,z}], ['ATAT', {x,y,z}], ['T', {x,y,z}], ['CCAACTCTCTG', {x,y,z}]], graph)
 
     def test_dagify2(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test2.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile = dagify.generate_profiles(0)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # x,y,z,a = 'x', 'y', 'z', 'a'
@@ -101,8 +101,8 @@ class DAGifyTest(TestCase):
 
     def test_dagify3(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test3.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 1)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -110,8 +110,8 @@ class DAGifyTest(TestCase):
 
     def test_dagify_altpath(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "alternate_paths.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 1)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -119,8 +119,8 @@ class DAGifyTest(TestCase):
 
     def test_dagify_dup(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "duplicate.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 2)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -129,8 +129,8 @@ class DAGifyTest(TestCase):
 
     def test_unresolved_repreat(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "unresolved_repeat.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
@@ -138,8 +138,8 @@ class DAGifyTest(TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "inversion.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual(graph, [])
@@ -147,8 +147,8 @@ class DAGifyTest(TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_nested_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "nested_inv.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual(graph, [])
@@ -157,7 +157,7 @@ class DAGifyTest(TestCase):
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "simple_inv.gfa"))
         graph = gfa.to_graph()
-        dagify = DAGify(graph.paths)
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
