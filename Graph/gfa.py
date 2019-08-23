@@ -103,12 +103,16 @@ class GFA:
         self.gfa.to_file(file)
 
     @classmethod
-    def from_graph(cls, graph: GraphGenome):
+    def from_graph(cls, graph: GraphGenome):  # TODO: should be given ZoomLevel instead
         """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
-        for path in graph.paths:
-            visits = [traverse.node_name + traverse.strand for traverse in
-                     path.nodes.values_list('node_name', 'strand', named=True)]
+        for path in graph.paths.all():
+            visits = []
+            # example of using lazy queries and values_list for fast lookup
+            node_infos = path.nodes.values_list('node_id', 'strand', named=True)
+            for traverse in node_infos:
+                name = Node.objects.values_list('name', flat=True).get(id=traverse.node_id)  # fast lookup
+                visits.append(name + traverse.strand)
             node_series = ",".join(visits)
             connections = ",".join(['*'] * path.nodes.count())  # count -1?
             gfa.add_line('\t'.join(['P', path.accession, node_series, connections]))

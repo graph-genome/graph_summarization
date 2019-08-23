@@ -66,14 +66,15 @@ class GraphTest(TestCase):
             current = graph.node(node_name)
             NodeTraversal(node=current, path=path, strand='+', order=i).save()
         assert NodeTraversal.objects.get(order=0, path=path).downstream().downstream().node.name == '6'
-        child = graph.paths.get(accession='a')
-        child.update(summarized_by=path)
         assert graph.zoomlevel_set.count() == 2
+        graph.paths.filter(accession='a').update(summarized_by=path)
+        assert bool(path.summary_child), "Path should be linked to its child."
         path_pointers = graph.zoomlevel_set.filter(zoom=1).first().paths
         print('path_pointers', type(path_pointers))
         assert path_pointers.count() == 1
 
-# @unittest.skip  # DAGify has not been converted to databases yet.
+
+#@unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
     """ test class of sort.py
     """

@@ -6,8 +6,6 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    replaces = [('Graph', '0004_ZoomLevel_objects'), ('Graph', '0005_auto_20190823_1603')]
-
     dependencies = [
         ('Graph', '0003_add_zoom_levels'),
     ]
