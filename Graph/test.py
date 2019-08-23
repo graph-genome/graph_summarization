@@ -56,7 +56,6 @@ class GraphTest(TestCase):
 
     def test_summary_storage(self):
         graph = self.test_example_graph()
-        parent = Path.objects.get(graph=graph, accession='a', zoom=0)
         path = Path.objects.create(graph=graph, accession='a', zoom=1)
         new_node = Node.objects.create(seq='ACGTCGGA', name='2*2', graph=graph)
         Node.objects.filter(name__in=['1','2','4']).update(summarized_by=new_node)
@@ -67,8 +66,14 @@ class GraphTest(TestCase):
             current = graph.node(node_name)
             NodeTraversal(node=current, path=path, strand='+', order=i).save()
         assert NodeTraversal.objects.get(order=0, path=path).downstream().downstream().node.name == '6'
+        child = graph.paths.get(accession='a')
+        child.update(summarized_by=path)
+        assert graph.zoomlevel_set.count() == 2
+        path_pointers = graph.zoomlevel_set.filter(zoom=1).first().paths
+        print('path_pointers', type(path_pointers))
+        assert path_pointers.count() == 1
 
-@unittest.skip  # DAGify has not been converted to databases yet.
+# @unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
     """ test class of sort.py
     """

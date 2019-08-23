@@ -6,7 +6,7 @@ import subprocess
 import io
 import os
 import tempfile
-from Graph.models import Node, Path, GraphGenome
+from Graph.models import Node, Path, GraphGenome, ZoomLevel
 
 
 def pairwise(iterable):
@@ -107,8 +107,11 @@ class GFA:
         """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
         for path in graph.paths:
-            node_series = ",".join([traverse.node.name + traverse.strand for traverse in path.nodes])
-            gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
+            visits = [traverse.node_name + traverse.strand for traverse in
+                     path.nodes.values_list('node_name', 'strand', named=True)]
+            node_series = ",".join(visits)
+            connections = ",".join(['*'] * path.nodes.count())  # count -1?
+            gfa.add_line('\t'.join(['P', path.accession, node_series, connections]))
         for node in graph.nodes:  # in no particular order
             gfa.add_line('\t'.join(['S', str(node.name), node.seq]))
         return cls(gfa, "from Graph")
@@ -120,13 +123,13 @@ class GFA:
     def to_graph(self) -> GraphGenome:
         """Create parent object for this genome and save it in the database.
         This can create duplicates appended in Paths if it is called twice."""
-        gdb = GraphGenome.objects.get_or_create(name=self.source_path)[0]
+        gdb = GraphGenome.objects.create(name=self.source_path)
+        # sequence_level = ZoomLevel.objects.create(graph=gdb, zoom=0)
         for segment in self.gfa.segments:
-            Node.objects.get_or_create(seq=segment.sequence, name=(segment.name), graph=gdb)
+            Node.objects.get_or_create(seq=segment.sequence, name=segment.name, graph=gdb)
 
         for path in self.gfa.paths:
-            p = Path(accession=path.name, graph=gdb)
-            p.save()
+            p = Path.objects.create(accession=path.name, graph=gdb, zoom=0)
             p.append_gfa_nodes(path.segment_names)
         return gdb
 

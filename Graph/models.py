@@ -1,5 +1,7 @@
 from typing import List, Iterable, Set
 from django.db import models
+from django.db.models import QuerySet
+
 from Utils.models import CustomSaveManager
 
 
@@ -14,15 +16,54 @@ class NodeMissingError(ValueError):
     pass
 
 
+class ZoomLevel(models.Model):
+    """Each Graph Genome has multiple Zoom levels.  A zoom level is a collection of Paths
+    at that zoom level.  When a Path is unmodified from a summarization step, it can reuse
+    a previous Path without duplicating it.
+    Zoom was originally a single integer in Path, but it turned out a helper class for queries
+    would result in more robust code and allow Path reuse."""
+    graph = models.ForeignKey('GraphGenome', on_delete=models.CASCADE)
+    zoom = models.IntegerField(default=0)  # Zoom level starts at 0 for nucleotide level and moves up
+    # Nodes can be shared between zoom levels.
+    paths = models.ManyToManyField('Path', related_name='zoom_levels', blank=True,
+                                         help_text='One path for each accession in a zoom level.  '
+                                                   'Paths can be reused unmodified in multiple levels.')
+
+    class Meta:
+        unique_together = ['graph', 'zoom']  # one ZoomLevel at each integer
+
+
+class GraphManager(models.Manager):
+    """custom create() methods for consistency and convenience"""
+    def create(self, **kwargs):
+        """When a graph is created.  It should also automatically create the first ZoomLevel."""
+        graph = super(GraphManager, self).create(**kwargs)
+        ZoomLevel.objects.create(graph=graph, zoom=0)  # sequence_level created
+        return graph
+
+
 class GraphGenome(models.Model):
+    """Graph Genomes in general are defined as a collection of unordered Nodes which contain sequence,
+    and one Path per individual.  A Path visits Nodes in any order, on either strand.  This directed
+    graph then contains the relationships of all individuals to each other through shared sequence.
+    GraphGenomes in this database contain an extra concept not found in GFA or VG: Summarization.
+    GraphGenome has multiple ZoomLevels which each contain a full set of Paths.  Paths at higher
+    zoom levels are shorter and visit summary nodes that explain or discard trivial variation to
+    allow user to focus on larger graph structure."""
     name = models.CharField(max_length=1000)
-    #zoom = models.IntegerField()  Zoom level is defined in Paths only.
+    # Zoom level is defined in Paths only.
     # Nodes can be shared between zoom levels.
 
+    objects = GraphManager()
+
     @property
-    def paths(self):
+    def sequence_level(self) -> 'ZoomLevel':
+        return self.zoomlevel_set.filter(zoom=0).first()
+
+    @property
+    def paths(self) -> QuerySet:
         """Getter only.  Shortcut for DB."""
-        return self.path_set.all()
+        return self.sequence_level.paths
 
     @property
     def nodes(self):
@@ -31,12 +72,12 @@ class GraphGenome(models.Model):
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
-        return f"Graph: {self.name}\n{self.path_set.count()} paths  {self.node_set.count()} nodes."
+        return f"Graph: {self.name}\n{self.paths.count()} paths  {self.node_set.count()} nodes."
 
     def __eq__(self, other):
         if isinstance(other, GraphGenome):
             return other.node_set.count() == self.node_set.count() and \
-                   other.path_set.count() == self.path_set.count()  # other.name == self.name and \
+                   other.paths.count() == self.paths.count()  # other.name == self.name and \
         return False
 
     @classmethod
@@ -70,6 +111,7 @@ class GraphGenome(models.Model):
         return Node.objects.get(name=node_name, graph=self)
 
 
+
 class Node(models.Model):
     """Nodes are the fundamental content carriers for sequence.  A Path
     can traverse nodes in any order, on both + and - strands.
@@ -81,6 +123,8 @@ class Node(models.Model):
     graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
     summarized_by = models.ForeignKey('Node', null=True, blank=True, on_delete=models.SET_NULL,
                                       related_name='children')
+    # Break points for haploblocks - Erik Garrison - service for coordinates
+    # Start and stop positions for a node
 
     class Meta:
         unique_together = ['graph', 'name']
@@ -156,23 +200,32 @@ class Node(models.Model):
 Node.NOTHING = Node(-1)
 
 
+class PathManager(models.Manager):
+    """custom create() methods for consistency and convenience"""
+    def create(self, accession, graph, zoom=0):
+        """Fetches the appropriate ZoomLevel object and creates a link when the Path is first
+        created. """
+        path = super(PathManager, self).create(accession=accession)
+        ZoomLevel.objects.get_or_create(graph=graph, zoom=zoom)[0].paths.add(path)
+        return path
+
+
 class Path(models.Model):
     """Paths represent the linear order of on particular individual (accession) as its genome
     was sequenced.  A path visits a series of nodes and the ordered concatenation of the node
     sequences is the accession's genome.  Create Paths first from accession names, then append
     them to Nodes to link together."""
     accession = models.CharField(max_length=1000)  # one path per accession
-    graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
-    zoom = models.IntegerField(default=0)  # Zoom level starts at 0 for nucleotide level and moves up
-    # Nodes can be shared between zoom levels.
     summarized_by = models.ForeignKey('Path', related_name='summary_child',
                                       blank=True, null=True, on_delete=models.SET_NULL)
 
-    class Meta:
-        unique_together = ['graph', 'accession', 'zoom']
+    objects = PathManager()
+
+    # class Meta:  we need a database check where each accession name only occurs once per zoom level
+    #     unique_together = ['accession', 'zoom_levels']
 
     def __getitem__(self, path_index):
-        return self.nodes[path_index]
+        return self.nodes.filter(order=path_index)
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
@@ -185,12 +238,17 @@ class Path(models.Model):
         return hash(self.accession)
 
     @property
-    def nodes(self) -> Iterable['NodeTraversal']:
-        return NodeTraversal.objects.filter(path=self).order_by('order').all()
+    def nodes(self) -> QuerySet:
+        return NodeTraversal.objects.filter(path=self).order_by('order')
+
+    @property
+    def graph(self) -> GraphGenome:
+        return self.zoom_levels.first().graph
 
     def append_gfa_nodes(self, nodes):
         assert hasattr(nodes[0], 'orient') and hasattr(nodes[0], 'name'), 'Expecting gfapy.Gfa.path'
         for node in nodes:
+            # TODO: could be sped up with bulk_create after checking and setting order
             NodeTraversal(node=Node.objects.get(name=node.name),
                           path=self, strand=node.orient).save()
 
