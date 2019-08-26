@@ -16,6 +16,31 @@ class NodeMissingError(ValueError):
     pass
 
 
+class ZoomLevelManager(models.Manager):
+    def create(self, graph, zoom) -> 'ZoomLevel':
+        """Creates a full collection of Paths for the new ZoomLevel that matches the
+        previous level's path names, but are now blank."""
+        me = super(ZoomLevelManager, self).create(graph=graph, zoom=zoom) # now saved to DB
+        if zoom == 0:
+            return me  # We've done all the necessary work
+        # Copy previous level in entirety
+        previous_level = graph.zoomlevel_set.get(zoom=zoom - 1)
+        path_names = previous_level.paths.values('accession')
+        # TODO: This loop can be sped up by bulk_create and bulk_update
+        for name in path_names:
+            p = Path(accession=name)  # new Path for a new level
+            p.save()
+            me.paths.add(p)  # linking to current level
+            nucleotide_path = previous_level.paths.get(accession=name)
+            nucleotide_path.update(summarized_by=p)  # links between levels
+            #TODO: this is REALLY SLOW AND WASTEFUL!
+            # Makes a full copy of every traversal in the Path so new copies can be edited
+            copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
+                      for traverse in nucleotide_path.nodetraversal_set]
+            NodeTraversal.objects.create(copies, 500)
+        return me
+
+
 class ZoomLevel(models.Model):
     """Each Graph Genome has multiple Zoom levels.  A zoom level is a collection of Paths
     at that zoom level.  When a Path is unmodified from a summarization step, it can reuse
@@ -28,9 +53,24 @@ class ZoomLevel(models.Model):
     paths = models.ManyToManyField('Path', related_name='zoom_levels', blank=True,
                                          help_text='One path for each accession in a zoom level.  '
                                                    'Paths can be reused unmodified in multiple levels.')
+    objects = ZoomLevelManager()
 
     class Meta:
         unique_together = ['graph', 'zoom']  # one ZoomLevel at each integer
+
+    def __len__(self):
+        """The number of unique NodeTraversals in this level"""
+        nodes = self.node_ids()
+        return len(nodes)
+
+    def node_ids(self) -> Set[int]:
+        path_ids = self.paths.values_list('id', flat=True)
+        nodes = set(NodeTraversal.objects.filter(path_id__in=path_ids).values_list('node_id', flat=True))
+        return nodes
+
+    def nodes(self) -> Iterable['Node']:
+        return Node.objects.filter(id__in=self.node_ids())
+
 
 
 class GraphManager(models.Manager):
@@ -95,8 +135,9 @@ class GraphGenome(models.Model):
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
 
-    def append_node_to_path(self, node_id, strand, path_name) -> None:
-        """This is the preferred way to build a graph in a truly non-linear way.
+    def append_node_to_path(self, node_id, strand, path_name, zoom) -> None:
+        """Path.append_node() is preferred over this method, as it is faster and simpler.
+        This will build a graph in a truly non-linear way.
         Nodes will be created if necessary.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
         (order independent)."""
@@ -105,7 +146,8 @@ class GraphGenome(models.Model):
                 self.nodes[node_id] = Node('', [], node_id)
             else:
                 raise ValueError("Provide the id of the node, not", node_id)
-        Path.objects.get(name=path_name).append_node(Node.objects.get(name=node_id), strand)
+        level = self.zoomlevel_set.get(zoom=zoom)
+        level.paths.get(name=path_name).append_node(Node.objects.get(name=node_id), strand)
 
     def node(self, node_name):
         return Node.objects.get(name=node_name, graph=self)
@@ -149,26 +191,28 @@ class Node(models.Model):
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
 
-    def specimens(self, zoom_level) -> Set[int]:
+    def specimens(self, zoom_level) -> List[int]:
         return self.nodetraversal_set.filter(path_zoom=zoom_level).value_list('path_id', flat=True)
 
-    def upstream(self, zoom_level) -> Set[int]:
+    def upstream_ids(self, zoom_level) -> Set[int]:
+        """Returns the node ids that are upstream of this node."""
         traverses = self.nodetraversal_set.filter(path_zoom=zoom_level)  #.value_list('node_id', flat=True)
         # Node.objects.filter(id__in=traverses).values_list('id', flat=True)
         return set(t.upstream_id() for t in traverses)
 
-    def downstream(self, zoom_level) -> Set[int]:
-        traverses = self.nodetraversal_set.filter(path_zoom=zoom_level).all()
+    def downstream_ids(self, zoom_level) -> Set[int]:
+        """Returns the node ids that are downstream of this node."""
+        traverses = self.nodetraversal_set.filter(path_zoom=zoom_level).all()  # TODO: optimize more
         return set(t.downstream_id() for t in traverses)
 
     def __repr__(self):
         return "N%s(%s)" % (str(self.name), self.seq)
 
-    def details(self):
+    def details(self, zoom=0):
         return f"""Node{self.name}: {self.seq}
-        upstream: {dict((key, value) for key, value in self.upstream.items())}
-        downstream: {dict((key, value) for key, value in self.downstream.items())}
-        {len(self.specimens)} specimens: {self.specimens}"""
+        upstream: {self.upstream_ids(zoom)}
+        downstream: {self.downstream_ids(zoom)}
+        {len(self.specimens(zoom))} specimens: {self.specimens}"""
 
     def is_nothing(self):
         """Useful in Node class definition to check for Node.NOTHING"""
@@ -177,17 +221,8 @@ class Node(models.Model):
     def validate(self):
         """Returns true if the Node has specimens and does not have any negative
         transition values, raises an AssertionError otherwise."""
-        if not self.specimens:
-            assert self.specimens, "Specimens are empty" + self.details()
-        for node, weight in self.upstream.items():
-            if not node.is_nothing() and weight < 0:
-                print(self.details())
-                assert weight > -1, node.details()
-
-        for node, weight in self.downstream.items():
-            if not node.is_nothing() and weight < 0:
-                print(self.details())
-                assert weight > -1, node.details()
+        if not self.nodetraversal_set.count():
+            assert False, "Orphaned: No NodeTraversals are referencing this Node." + self.details()
         return True
 
 
@@ -249,25 +284,31 @@ class Path(models.Model):
         assert hasattr(nodes[0], 'orient') and hasattr(nodes[0], 'name'), 'Expecting gfapy.Gfa.path'
         for node in nodes:
             # TODO: could be sped up with bulk_create after checking and setting order
-            NodeTraversal(node=Node.objects.get(name=node.name),
-                          path=self, strand=node.orient).save()
+            NodeTraversal.objects.create(node=Node.objects.get(name=node.name),
+                                         path=self, strand=node.orient)
 
     def append_node(self, node: Node, strand: str):
         """This is the preferred way to build a graph in a truly non-linear way.
+        NodeTraversal.order is guaranteed to be contiguous, making upstream() and downstream() work properly.
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node (order independent)."""
-        NodeTraversal(node=node, path=self, strand=strand).save()
-
-    # @classmethod
-    # def build(cls, name: str, seq_of_nodes: List[str]):
-    #     node = Node.objects.create(seq)
-    #     for p in paths:
-    #         NodeTraversal.objects.create(node, path)
+        NodeTraversal.objects.create(node=node, path=self, strand=strand)  # calculates order
 
     def name(self):
         return self.accession
 
     def to_gfa(self):
         return '\t'.join(['P', self.accession, "+,".join([x.node.name + x.strand for x in self.nodes]) + "+", ",".join(['*' for x in self.nodes])])
+
+
+class NodeTraversalManager(models.Manager):
+    def create(self, node, path, strand, order=None):
+        """Checks the largest 'order' value in the current path and increments by 1.
+        IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
+        or get_or_create"""
+        if order is None:
+            last_traversal = path.nodetraversal_set.all().order_by('-order').first()
+            order = 0 if not last_traversal else last_traversal.order + 1
+        return super(NodeTraversalManager, self).create(node=node, path=path, strand=strand, order=order)
 
 
 class NodeTraversal(models.Model):
@@ -279,7 +320,7 @@ class NodeTraversal(models.Model):
     order = models.IntegerField(help_text='Defines the order a path lists traversals. '
                                           'The scale of order is not preserved between zoom levels.')
 
-    objects = CustomSaveManager()
+    objects = NodeTraversalManager()
 
     def __repr__(self):
         if self.strand == '+':
@@ -291,15 +332,6 @@ class NodeTraversal(models.Model):
     def __eq__(self, other):
         return self.node.id == other.node.id and self.strand == other.strand
 
-    def save(self, **kwargs):
-        """Checks the largest 'order' value in the current path and increments by 1.
-        IMPORTANT NOTE: save() does not get called if you do NodeTraverseal.objects.create
-        or get_or_create"""
-        if self.order is None:
-            last_traversal = self.path.nodetraversal_set.all().order_by('-order').first()
-            self.order = 0 if not last_traversal else last_traversal.order + 1
-        super(NodeTraversal, self).save(**kwargs)
-
     def fetch_neighbor(self, target_index):
         query = NodeTraversal.objects.filter \
             (path=self.path, order=target_index).values_list('node__id', flat=True)
@@ -309,11 +341,31 @@ class NodeTraversal(models.Model):
 
     def upstream_id(self):
         target_index = self.order - 1
-        return self.fetch_neighbor(target_index)
+        return self.neighbor_id(target_index)
+        # try:  This query version can tolerate non-contiguous Path sequences
+        #     return NodeTraversal.objects.\
+        #         filter(path=self.path, order__lte=target_index).\
+        #         order_by('-order').first().values_list('node_id', flat=True)[0]
+        # except (NodeTraversal.DoesNotExist, IndexError):
+        #     return None
 
     def downstream_id(self):
         target_index = self.order + 1
-        return self.fetch_neighbor(target_index)
+        return self.neighbor_id(target_index)
+        # try:  This query version can tolerate non-contiguous Path sequences
+        #     return NodeTraversal.objects.\
+        #         filter(path=self.path, order__gte=target_index).\
+        #         order_by('order').first().values_list('node_id', flat=True)[0]
+        # except (NodeTraversal.DoesNotExist, IndexError):
+        #     return None
+
+    def neighbor_id(self, target_index):
+        """Faster query that just retruns the node_id, not the NodeTraversal."""
+        try:
+            return NodeTraversal.objects.\
+                get(path=self.path, order=target_index).values_list('node_id', flat=True)[0]
+        except (NodeTraversal.DoesNotExist, IndexError):
+            return None
 
     def neighbor(self, target_index):
         try:
@@ -321,11 +373,10 @@ class NodeTraversal(models.Model):
         except NodeTraversal.DoesNotExist:
             return None
 
-    def upstream(self):
-        target_index = self.order - 1
-        return self.neighbor(target_index)
+    def upstream(self) -> 'NodeTraversal':
+        """Slower queries that return the neighboring NodeTraversal.  This can be chained."""
+        return self.neighbor(self.order - 1)
 
-    def downstream(self):
-        target_index = self.order + 1
-        return self.neighbor(target_index)
-
+    def downstream(self) -> 'NodeTraversal':
+        """Slower queries that return the neighboring NodeTraversal.  This can be chained."""
+        return self.neighbor(self.order + 1)

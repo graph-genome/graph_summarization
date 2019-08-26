@@ -3,11 +3,11 @@ HaploBlocker handles Graph Summarization explained in:
 Graph Summarization: https://github.com/graph-genome/vgbrowser/issues/3
 HaploBlocker: https://github.com/graph-genome/vgbrowser/issues/19
 """
-from typing import List
+from typing import List, Iterable
 import numpy as np
 from collections import defaultdict
 from copy import copy
-from Graph.models import Node, Path
+from Graph.models import Node, Path, ZoomLevel, NodeTraversal
 
 BLOCK_SIZE = 20
 FILTER_THRESHOLD = 4
@@ -62,20 +62,26 @@ def build_all_slices(alleles, individuals, current_graph):
     return slices
 
 
-def build_paths(individuals, unique_signatures):
+def build_paths(individuals, unique_signatures, graph):
     """Describes an individual as a Path (list of Nodes) that the individual visits (NodeTraversals).
     accessions is a list of loci which contain a list of Nodes which each contain specimen
     build nodes:  [0] first 4 are the 4 starting signatures in window 0.
     Nodes represent a collection of individuals with the same signature at that locus
-    For each node list which individuals are present at that node"""
+    For each node list which individuals are present at that node
+    :param graph: """
     # TODO: It may be more performant to merge build_all_slices and build_paths so that global lists are never stored
+    print(f"Building paths from {len(individuals)} individuals and {len(unique_signatures)} loci")
     accessions = []
     for i_specimen, specimen in enumerate(individuals):
-        my_path = Path.objects.create(accession=str(i_specimen))
-        for w, window in enumerate(unique_signatures):  # the length of the genome
-            sig = signature(specimen, w * BLOCK_SIZE)
-            my_path.append_node(unique_signatures[w][sig], '+')
+        my_path = Path.objects.create(accession=str(i_specimen), graph=graph)
+        my_sigs = [unique_signatures[w][signature(specimen, w * BLOCK_SIZE)] for w in range(len(unique_signatures))]
+        traverses = [NodeTraversal(node=sig, path=my_path, strand='+') for sig in my_sigs]
+        NodeTraversal.objects.bulk_create(traverses, 1000)
+        # for w, window in enumerate(unique_signatures):  # the length of the genome
+        #     sig = signature(specimen, w * BLOCK_SIZE)
+        #     my_path.append_node(unique_signatures[w][sig], '+')
         accessions.append(my_path)
+    print(f"Done building {len(accessions)}Paths")
     return accessions
 
 
@@ -128,31 +134,37 @@ def update_stream_transitions(node, stream):
         g(node, stream).pop(key, None)
 
 
-def simple_merge(full_graph):
+def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     """ Side effects full_graph by merging any consecutive nodes that have
-    identical specimens and removing the redundant node from full_graph.
+    identical specimens and removing the redundant my_node from full_graph.
     :param full_graph:
     :return: full_graph modified
     """
-    n = 0
-    while n < len(full_graph):  # size of global_nodes changes, necessitating this weird loop
-        node = full_graph[n]
-        if len(node.downstream) == 1:
-            next_node = first(node.downstream.keys())
-            if len(node.specimens) == len(next_node.specimens):
-                # Torsten deletes nodeA and modifies next_node
-                next_node.upstream = node.upstream
-                next_node.start = node.start
-                # prepare to delete node by removing references
-                for parent in node.upstream.keys():
-                    if not parent.is_nothing():
-                        count = parent.downstream[node]
-                        del parent.downstream[node]  # updating pointer
-                        parent.downstream[next_node] = count
-                full_graph.remove(node)  # delete node
-                n -= 1
-        n += 1
-    return full_graph
+    #TODO: Paths start fully populated with redundant NodeTraversals.  Editing NodeTraversals,
+    # moves to newly created Nodes.  Global bool for whether or not a particular path was modified.
+    zoom = current_level.zoom
+    next_level = ZoomLevel.objects.create(graph=current_level.graph, zoom=zoom + 1)
+    for my_node in current_level.nodes():
+        # only one Node Downstream, no matter the number of specimens
+        if len(my_node.downstream_ids(zoom)) == 1:
+            next_node = my_node.nodetraversal_set.fist().downstream().node  # fetched from DB
+            if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
+                # Torsten deletes my_node and modifies next_node
+                merged_node = Node.objects.create(name=f'{my_node.name}*{next_level.zoom}',
+                                                  graph=current_level.graph)
+                for x in [my_node, next_node]:
+                    x.summarized_by = merged_node
+                    x.save()
+
+                # edit existing traversals
+                NodeTraversal.objects.filter(node=next_node, path__in=next_level.paths).bulk_update(node_id=merged_node.id)
+                # next_node.nodetraversal_set.filter(zoom=zoom).bulk_update(node_id=merged_node.id)
+
+                # delete my_node and all associates
+                query = NodeTraversal.objects.filter(node=my_node, path__in=next_level.paths)
+                query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
+                # TODO: merged_node.start = my_node.start
+    return next_level
 
 
 def delete_node(node, cutoff):

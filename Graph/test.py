@@ -69,10 +69,22 @@ class GraphTest(TestCase):
         assert graph.zoomlevel_set.count() == 2
         graph.paths.filter(accession='a').update(summarized_by=path)
         assert bool(path.summary_child), "Path should be linked to its child."
-        path_pointers = graph.zoomlevel_set.filter(zoom=1).first().paths
-        print('path_pointers', type(path_pointers))
+        zoom1 = graph.zoomlevel_set.get(zoom=1)
+        path_pointers = zoom1.paths
         assert path_pointers.count() == 1
+        # ZoomLevel
+        self.assertEqual(len(zoom1), 3, )
+        self.assertEqual(zoom1.node_ids(),{5, 21, 6}, zoom1.node_ids())
+        self.assertEqual(graph.zoomlevel_set.get(zoom=0).node_ids(), set(range(1,21)))
+        names = [x.name for x in zoom1.nodes()]
+        self.assertEqual(names, ['5', '6', '2*2'])
+        sequences = [x.seq for x in zoom1.nodes()]
+        self.assertEqual(sequences, ['C', 'AGTACG', 'ACGTCGGA'])
 
+
+    # def test_zoom_level(self):
+    #     graph = self.test_example_graph()
+    #     node_ids
 
 @unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
