@@ -152,6 +152,8 @@ class GraphGenome(models.Model):
     def node(self, node_name):
         return Node.objects.get(name=node_name, graph=self)
 
+    def highest_zoom_level(self):
+        return self.zoomlevel_set.all().order_by('-zoom').first().zoom
 
 
 class Node(models.Model):
@@ -192,7 +194,7 @@ class Node(models.Model):
         return '\t'.join(['S', str(segment_id), self.seq])
 
     def specimens(self, zoom_level) -> List[int]:
-        return self.nodetraversal_set.filter(path_zoom=zoom_level).value_list('path_id', flat=True)
+        return list(self.nodetraversal_set.filter(path_zoom=zoom_level).value_list('path_id', flat=True))
 
     def upstream_ids(self, zoom_level) -> Set[int]:
         """Returns the node ids that are upstream of this node."""

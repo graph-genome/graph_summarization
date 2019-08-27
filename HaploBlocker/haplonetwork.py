@@ -75,11 +75,8 @@ def build_paths(individuals, unique_signatures, graph):
     for i_specimen, specimen in enumerate(individuals):
         my_path = Path.objects.create(accession=str(i_specimen), graph=graph)
         my_sigs = [unique_signatures[w][signature(specimen, w * BLOCK_SIZE)] for w in range(len(unique_signatures))]
-        traverses = [NodeTraversal(node=sig, path=my_path, strand='+') for sig in my_sigs]
-        NodeTraversal.objects.bulk_create(traverses, 1000)
-        # for w, window in enumerate(unique_signatures):  # the length of the genome
-        #     sig = signature(specimen, w * BLOCK_SIZE)
-        #     my_path.append_node(unique_signatures[w][sig], '+')
+        traverses = [NodeTraversal(node=sig, path=my_path, strand='+', order=i) for i, sig in enumerate(my_sigs)]
+        NodeTraversal.objects.bulk_create(traverses, 100)
         accessions.append(my_path)
     print(f"Done building {len(accessions)}Paths")
     return accessions
@@ -142,8 +139,7 @@ def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     """
     #TODO: Paths start fully populated with redundant NodeTraversals.  Editing NodeTraversals,
     # moves to newly created Nodes.  Global bool for whether or not a particular path was modified.
-    zoom = current_level.zoom
-    next_level = ZoomLevel.objects.create(graph=current_level.graph, zoom=zoom + 1)
+    next_level, zoom = prep_next_summary_layer(current_level)
     for my_node in current_level.nodes():
         # only one Node Downstream, no matter the number of specimens
         if len(my_node.downstream_ids(zoom)) == 1:
@@ -167,6 +163,14 @@ def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     return next_level
 
 
+def prep_next_summary_layer(current_level):
+    zoom = current_level.zoom
+    assert current_level.graph.highest_zoom_level() == zoom, \
+        "You should only be summarizing the topmost layer"
+    next_level = ZoomLevel.objects.create(graph=current_level.graph, zoom=zoom + 1)
+    return next_level, zoom
+
+
 def delete_node(node, cutoff):
     """Changes references to this node to add to references to Node.NOTHING"""
     if cutoff < 1:
@@ -183,6 +187,9 @@ def neglect_nodes(all_nodes, deletion_cutoff=FILTER_THRESHOLD):
     """Deletes nodes if they have too few specimens supporting them defined by
     :param deletion_cutoff
     :returns a new list of nodes lacking the pruned nodes in all_nodes"""
+
+    # next_level, zoom = prep_next_summary_layer(current_level)
+
     nodes_to_delete = set()
     for node in all_nodes:
         if len(node.specimens) <= deletion_cutoff:
@@ -197,20 +204,20 @@ def split_one_group(prev_node, anchor, next_node):
     """ Called when up.specimens == down.specimens
     Comment: That is actually the case we want to split up to obtain longer blocks later
     Extension of full windows will take care of potential loss of information later"""
-    my_specimens = copy(anchor.specimens)  # important to copy or side effects occur
+    my_specimens = anchor.specimens()  # important to copy or side effects occur
     if not prev_node.is_nothing():  # normal case
-        my_specimens = my_specimens.intersection(prev_node.specimens)
+        my_specimens = my_specimens.intersection(prev_node.specimens())
     if not next_node.is_nothing():  # normal case
-        my_specimens = my_specimens.intersection(next_node.specimens)
+        my_specimens = my_specimens.intersection(next_node.specimens())
     if prev_node.is_nothing() and next_node.is_nothing():  # exceptional: both are nothing node
-        my_specimens = copy(anchor.specimens)
+        my_specimens = copy(anchor.specimens())
         # removing all specimens that transition to nothing
         for n in anchor.downstream.keys():
             if n.is_nothing():  # remove dead leads
-                my_specimens -= n.specimens
+                my_specimens -= n.specimens()
         for n in anchor.upstream.keys():
             if n.is_nothing():  # remove dead leads
-                my_specimens -= n.specimens
+                my_specimens -= n.specimens()
 
     my_upstream, my_downstream = copy(prev_node.upstream), copy(next_node.downstream)
     if prev_node.is_nothing():  # Rare case
@@ -257,6 +264,9 @@ def split_groups(all_nodes: List[Node]):
     TODO: Ideally, the database would retain some record of how many nucleotides are shared between
     the two new haplotype nodes."""
     new_graph = list(all_nodes)
+    # next_level, zoom = prep_next_summary_layer(current_level)
+
+
     for node in all_nodes:
         # check if all transition upstream match with one of my downstream nodes
         if len(node.specimens) > 0:
