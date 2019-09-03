@@ -193,8 +193,8 @@ class Node(models.Model):
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
 
-    def specimens(self, zoom_level) -> List[int]:
-        return list(self.nodetraversal_set.filter(path_zoom=zoom_level).value_list('path_id', flat=True))
+    def specimens(self, zoom_level) -> Set[int]:
+        return set(self.nodetraversal_set.filter(path__zoomlevel_set__zoom=zoom_level).value_list('path_id', flat=True))
 
     def upstream_ids(self, zoom_level) -> Set[int]:
         """Returns the node ids that are upstream of this node."""

@@ -140,7 +140,8 @@ class HaploTest(TestCase):
         ]
         g = Graph.utils.build_graph_from_slices(nodes, '9')
         first, anchor, third = g.node('91'), g.node('93'), g.node('94')
-        new_node = split_one_group(first, anchor, third)  # no mentions of minorities [1] or [4]
+        zoom = ZoomLevel.objects.get(graph=g, zoom=0)
+        new_node = split_one_group(first, anchor, third, zoom)  # no mentions of minorities [1] or [4]
         print(new_node.details())
         assert new_node in g.node('90').downstream and g.node('92') in g.node('90').downstream
         assert g.node('91') not in g.node('90').downstream

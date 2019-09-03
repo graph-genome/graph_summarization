@@ -140,6 +140,15 @@ def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     #TODO: Paths start fully populated with redundant NodeTraversals.  Editing NodeTraversals,
     # moves to newly created Nodes.  Global bool for whether or not a particular path was modified.
     next_level, zoom = prep_next_summary_layer(current_level)
+    # TODO: Iterate an optimized query or Remove this nonsense comment
+    # Node.objects.filter()
+    # NodeTraversal.objects.filter(node_id)
+    # traverses = Node.nodetraversal_set.filter(path_zoom=zoom)\
+    #     .distinct()\
+    #     .filter(count=1)
+    # downstream_ids = set(t.downstream_id() for t in traverses)
+    # a.path_set == b.path_set
+    # Node.objects.filter(path_set == )
     for my_node in current_level.nodes():
         # only one Node Downstream, no matter the number of specimens
         if len(my_node.downstream_ids(zoom)) == 1:
@@ -200,46 +209,25 @@ def neglect_nodes(all_nodes, deletion_cutoff=FILTER_THRESHOLD):
     return filtered_nodes
 
 
-def split_one_group(prev_node, anchor, next_node):
+def split_one_group(prev_node, anchor, next_node, level: ZoomLevel):
     """ Called when up.specimens == down.specimens
     Comment: That is actually the case we want to split up to obtain longer blocks later
     Extension of full windows will take care of potential loss of information later"""
-    my_specimens = anchor.specimens()  # important to copy or side effects occur
-    if not prev_node.is_nothing():  # normal case
-        my_specimens = my_specimens.intersection(prev_node.specimens())
-    if not next_node.is_nothing():  # normal case
-        my_specimens = my_specimens.intersection(next_node.specimens())
-    if prev_node.is_nothing() and next_node.is_nothing():  # exceptional: both are nothing node
-        my_specimens = copy(anchor.specimens())
-        # removing all specimens that transition to nothing
-        for n in anchor.downstream.keys():
-            if n.is_nothing():  # remove dead leads
-                my_specimens -= n.specimens()
-        for n in anchor.upstream.keys():
-            if n.is_nothing():  # remove dead leads
-                my_specimens -= n.specimens()
 
-    my_upstream, my_downstream = copy(prev_node.upstream), copy(next_node.downstream)
-    if prev_node.is_nothing():  # Rare case
-        my_upstream = copy(anchor.upstream)
-    if next_node.is_nothing():  # Rare case
-        my_downstream = copy(anchor.downstream)
+    my_specimens = anchor.specimens(level.zoom)  # list of path_ids
+    my_specimens = my_specimens.intersection(prev_node.specimens(level.zoom))
+    my_specimens = my_specimens.intersection(next_node.specimens(level.zoom))
+    new_node = Node.objects.create(graph=level.graph, name=f'{anchor.name}:{level.zoom}')
+    for a in (prev_node, anchor, next_node):
+        a.summarized_by = new_node
+        a.save()
+    NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=anchor).update(node_id=new_node.id)
+    NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=prev_node.id).delete()
+    NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=next_node.id).delete()
+    # TODO: if this is slow use query._raw_delete
 
-    # TODO: what about case where more content is joining downstream?
-    new = Node(777, my_specimens, my_upstream, my_downstream)
-
-    # Update Specimens in prev_node, anchor, next_node
-    anchor.specimens -= new.specimens
-    prev_node.specimens -= new.specimens
-    next_node.specimens -= new.specimens
-
-    # Update upstream/downstream
-    update_neighbor_pointers(new)
-    suspects = {new, prev_node, anchor, next_node}.union(set(new.upstream.keys()), set(new.downstream.keys()))
-    for n in suspects:
-        update_transition(n)
-    new.validate()
-    return new
+    new_node.validate()
+    return new_node
 
 
 def update_neighbor_pointers(new_node):
