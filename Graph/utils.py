@@ -27,13 +27,15 @@ def build_graph_from_slices(cmd: List, graph_name='test_data') -> GraphGenome:
     path_objs = {}
     for path_name in paths:
         if graph.paths.filter(accession=path_name).count() == 0:
-            path_objs[path_name] = Path.objects.create(graph=graph, accession=path_name, zoom=0)
+            path_objs[path_name] = Path.objects.create(accession=path_name, zoom=graph.nucleotide_level)
     for sl in cmd:
         try:
             for i in range(0, len(sl), 2):
                 paths_mentioned = [path_objs[key] for key in sl[i + 1]]
                 node, is_new = Node.objects.get_or_create(
-                    seq=sl[i], name=graph.name + str(node_count), graph=graph)
+                    seq=sl[i],
+                    name=graph.name + str(node_count),
+                    zoom=graph.nucleotide_level)
                 node_count += 1
                 for path in paths_mentioned:
                     path.append_node(node, '+')

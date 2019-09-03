@@ -7,7 +7,7 @@ from typing import List, Iterable
 import numpy as np
 from collections import defaultdict
 from copy import copy
-from Graph.models import Node, Path, ZoomLevel, NodeTraversal
+from Graph.models import Node, Path, ZoomLevel, NodeTraversal, GraphGenome
 
 BLOCK_SIZE = 20
 FILTER_THRESHOLD = 4
@@ -33,7 +33,7 @@ def signature(individual, start_locus):
     return tuple(individual[start_locus: start_locus + BLOCK_SIZE])
 
 
-def nodes_from_unique_signatures(individuals, start_locus, current_graph):
+def nodes_from_unique_signatures(individuals, start_locus, current_graph: GraphGenome):
     """A signature is a series of BLOCK_SIZE SNPs inside of a locus.  We want to know how many
     unique signatures are present inside of one locus.  A Node is created for each unique
     signature found.
@@ -47,7 +47,7 @@ def nodes_from_unique_signatures(individuals, start_locus, current_graph):
             unique_blocks[sig] = Node.objects.create(  # saves to Database
                 name=f'{len(unique_blocks)}:{start_locus // BLOCK_SIZE}-{start_locus // BLOCK_SIZE}',
                                       seq=''.join(str(x) for x in sig),
-                                      graph=current_graph)
+                                      zoom=current_graph.nucleotide_level)
     return unique_blocks
 
 
@@ -62,7 +62,7 @@ def build_all_slices(alleles, individuals, current_graph):
     return slices
 
 
-def build_paths(individuals, unique_signatures, graph):
+def build_paths(individuals, unique_signatures, graph: GraphGenome):
     """Describes an individual as a Path (list of Nodes) that the individual visits (NodeTraversals).
     accessions is a list of loci which contain a list of Nodes which each contain specimen
     build nodes:  [0] first 4 are the 4 starting signatures in window 0.
@@ -73,7 +73,7 @@ def build_paths(individuals, unique_signatures, graph):
     print(f"Building paths from {len(individuals)} individuals and {len(unique_signatures)} loci")
     accessions = []
     for i_specimen, specimen in enumerate(individuals):
-        my_path = Path.objects.create(accession=str(i_specimen), graph=graph)
+        my_path = Path.objects.create(accession=str(i_specimen), zoom=graph.nucleotide_level)
         my_sigs = [unique_signatures[w][signature(specimen, w * BLOCK_SIZE)] for w in range(len(unique_signatures))]
         traverses = [NodeTraversal(node=sig, path=my_path, strand='+', order=i) for i, sig in enumerate(my_sigs)]
         NodeTraversal.objects.bulk_create(traverses, 100)
@@ -131,15 +131,14 @@ def update_stream_transitions(node, stream):
         g(node, stream).pop(key, None)
 
 
-def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
+def simple_merge(current_level: ZoomLevel) -> bool:
     """ Side effects full_graph by merging any consecutive nodes that have
     identical specimens and removing the redundant my_node from full_graph.
     :param current_level: Graph that will be read and edited
-    :return: full_graph modified
+    :return: true if modification occurred
     """
-    #TODO: Paths start fully populated with redundant NodeTraversals.  Editing NodeTraversals,
-    # moves to newly created Nodes.  Global bool for whether or not a particular path was modified.
-    next_level, zoom = prep_next_summary_layer(current_level)
+    #TODO: Global bool for whether or not a particular path was modified.
+
     # TODO: Iterate an optimized query or Remove this nonsense comment
     # Node.objects.filter()
     # NodeTraversal.objects.filter(node_id)
@@ -149,32 +148,38 @@ def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     # downstream_ids = set(t.downstream_id() for t in traverses)
     # a.path_set == b.path_set
     # Node.objects.filter(path_set == )
-    for my_node in current_level.nodes():
-        # only one Node Downstream, no matter the number of specimens
-        if len(my_node.downstream_ids(zoom)) == 1:
-            d = my_node.nodetraversal_set.first().downstream()
-            if d:
-                next_node = d.node  # fetched from DB
-                if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
-                    # Torsten deletes my_node and modifies next_node
-                    merged_node = Node.objects.create(name=f'{my_node.name}*{next_level.zoom}',
-                                                      graph=current_level.graph)
-                    for x in [my_node, next_node]:
-                        x.summarized_by = merged_node
-                        x.save()
+    modification_happened = False
+    path_ids = current_level.paths.values_list('id', flat=True)
+    for node_id in range(1, current_level.node_set.order_by('-id').first().id):
+        try:
+            my_node = Node.objects.get(id=node_id, zoom=current_level)
 
-                    # edit existing traversals
-                    path_ids = next_level.paths.values_list('id', flat=True)
-                    NodeTraversal.objects.\
-                        filter(node=next_node, path_id__in=path_ids).\
-                        update(node_id=merged_node.id)
-                    # next_node.nodetraversal_set.filter(zoom=zoom).bulk_update(node_id=merged_node.id)
+            # only one Node Downstream, no matter the number of specimens
+            if len(my_node.downstream_ids()) == 1:
+                d = my_node.nodetraversal_set.first().downstream()
+                if d:
+                    modification_happened = True
+                    next_node = d.node  # fetched from DB
+                    if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
+                        # Torsten deletes my_node and modifies next_node
+                        merged_node = Node.objects.create(name=f'{my_node.name}*{current_level.zoom}',
+                                                          zoom=current_level)
+                        for x in [my_node, next_node]:
+                            x.summarized_by = merged_node
+                            x.save()  # TODO: doesn't work because reading and writing same layer.  next_node gets deleted soon
 
-                    # delete my_node and all associates
-                    query = NodeTraversal.objects.filter(node=my_node, path_id__in=path_ids)
-                    query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
-                    # TODO: merged_node.start = my_node.start
-    return next_level
+                        # edit existing traversals
+                        next_node.nodetraversal_set.\
+                            filter(path_id__in=path_ids).\
+                            update(node_id=merged_node.id)
+
+                        # delete my_node and all associates
+                        query = my_node.nodetraversal_set.filter(path_id__in=path_ids)
+                        query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
+                        # TODO: merged_node.start = my_node.start, length = my_node.length + next_node.length
+        except Node.DoesNotExist:
+            pass  # node ids are not entirely dense
+    return modification_happened
 
 
 def prep_next_summary_layer(current_level):
@@ -189,7 +194,7 @@ def delete_node(node: Node, cutoff: int, layer: ZoomLevel):
     """Changes references to this node to add to references to Node.NOTHING"""
     if cutoff < 1:
         return  # if cutoff is 0, then don't touch upstream and downstream
-    node.traverses(layer).delete()
+    node.traverses().delete()
     node.validate()
 
 
@@ -200,8 +205,8 @@ def neglect_nodes(zoom_level : ZoomLevel, deletion_cutoff=FILTER_THRESHOLD):
 
     # next_level, zoom = prep_next_summary_layer(current_level)
 
-    for node in zoom_level.nodes():  # TODO optimize distinct count
-        if len(node.specimens(zoom_level)) <= deletion_cutoff:
+    for node in zoom_level.nodes:  # TODO optimize distinct count
+        if len(node.specimens()) <= deletion_cutoff:
             delete_node(node, deletion_cutoff, zoom_level)
 
 
@@ -210,10 +215,10 @@ def split_one_group(prev_node, anchor, next_node, zoom_level: ZoomLevel):
     Comment: That is actually the case we want to split up to obtain longer blocks later
     Extension of full windows will take care of potential loss of information later"""
 
-    my_specimens = anchor.specimens(zoom_level.zoom)  # list of path_ids
-    my_specimens = my_specimens.intersection(prev_node.specimens(zoom_level.zoom))
-    my_specimens = my_specimens.intersection(next_node.specimens(zoom_level.zoom))
-    new_node = Node.objects.create(graph=zoom_level.graph, name=f'{anchor.name}:{zoom_level.zoom}')
+    my_specimens = anchor.specimens()  # list of path_ids
+    my_specimens = my_specimens.intersection(prev_node.specimens())
+    my_specimens = my_specimens.intersection(next_node.specimens())
+    new_node = Node.objects.create(zoom=zoom_level, name=f'{anchor.name}:{zoom_level.zoom}')
     for a in (prev_node, anchor, next_node):
         a.summarized_by = new_node
         a.save()
@@ -249,14 +254,14 @@ def split_groups(zoom_level: ZoomLevel):
     TODO: Ideally, the database would retain some record of how many nucleotides are shared between
     the two new haplotype nodes."""
 
-    for node in zoom_level.nodes():
+    for node in zoom_level.nodes:
         # check if all transition upstream match with one of my downstream nodes
-        if len(node.specimens(zoom_level)) > 0:
+        if len(node.specimens()) > 0:
             # Matchup upstream and downstream with specimen identities
-            for up in node.upstream(zoom_level):
-                set1 = up.specimens(zoom_level)
+            for up in node.upstream():
+                set1 = up.specimens()
                 if len(set1):
-                    for down in node.downstream(zoom_level):
-                        set2 = down.specimens(zoom_level)
+                    for down in node.downstream():
+                        set2 = down.specimens()
                         if set1 == set2 and len(set2) > 0:
                             new_node = split_one_group(up, node, down, zoom_level)

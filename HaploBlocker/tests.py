@@ -15,12 +15,13 @@ from HaploBlocker.haplonetwork import read_data, build_all_slices, build_paths, 
 class ModelTest(TestCase):
     def test_creation(self):
         g = GraphGenome.objects.create(name='test_creation')
-        p = Path.objects.create(accession='watermelon', graph=g)
-        n = Node.objects.create(seq='ACGT', graph=g)
+        z = g.nucleotide_level
+        p = Path.objects.create(accession='watermelon', zoom=z)
+        n = Node.objects.create(seq='ACGT', zoom=z)
         NodeTraversal.objects.create(node=n, path=p, strand='+')
-        NodeTraversal.objects.create(node=Node.objects.create(seq='AAAA', name='-9', graph=g),
+        NodeTraversal.objects.create(node=Node.objects.create(seq='AAAA', name='-9', zoom=z),
                                      path=p, strand='+')
-        NodeTraversal.objects.create(node=Node.objects.create(seq='TTT', name='-8', graph=g),
+        NodeTraversal.objects.create(node=Node.objects.create(seq='TTT', name='-8', zoom=z),
                                      path=p, strand='+')
         print(NodeTraversal.objects.all())
 
@@ -113,7 +114,7 @@ class HaploTest(TestCase):
 
     def test_simple_merge(self):
         graph = self.create_graph('test')
-        self._test_simple_merge(graph.nucleotide_level())
+        self._test_simple_merge(graph.nucleotide_level)
 
 
     def _test_neglect_nodes(self, zoom_level : ZoomLevel):
@@ -139,18 +140,18 @@ class HaploTest(TestCase):
             ['96', {1, 2, 3, 4}] #[6]
         ]
         g = Graph.utils.build_graph_from_slices(nodes, '9')
-        first, anchor, third = g.node('91'), g.node('93'), g.node('94')
-        zoom = ZoomLevel.objects.get(graph=g, zoom=0)
-        new_node = split_one_group(first, anchor, third, zoom)  # no mentions of minorities [1] or [4]
+        z = g.nucleotide_level
+        first, anchor, third = z.node('91'), z.node('93'), z.node('94')
+        new_node = split_one_group(first, anchor, third, z)  # no mentions of minorities [1] or [4]
         print(new_node.details())
-        self.assertIn(new_node.id, g.node('90').downstream_ids(0))
-        self.assertIn(g.node('92').id, g.node('90').downstream_ids(0))
-        self.assertNotIn(g.node('91').id, g.node('90').downstream_ids(0))
-        self.assertIn(g.node('90').id, new_node.upstream_ids(0))
-        self.assertIn(g.node('96').id, new_node.downstream_ids(0))
-        self.assertIn(new_node.id, g.node('96').upstream_ids(0))
-        self.assertIn(g.node('95').id, g.node('96').upstream_ids(0))
-        self.assertNotIn(g.node('94').id, g.node('96').upstream_ids(0))
+        self.assertIn(new_node.id, z.node('90').downstream_ids())
+        self.assertIn(z.node('92').id, z.node('90').downstream_ids())
+        self.assertNotIn(z.node('91').id, z.node('90').downstream_ids())
+        self.assertIn(z.node('90').id, new_node.upstream_ids())
+        self.assertIn(z.node('96').id, new_node.downstream_ids())
+        self.assertIn(new_node.id, z.node('96').upstream_ids())
+        self.assertIn(z.node('95').id, z.node('96').upstream_ids())
+        self.assertNotIn(z.node('94').id, z.node('96').upstream_ids())
 
     def test_split_groups(self):
         nodes = [
@@ -162,14 +163,14 @@ class HaploTest(TestCase):
         ]
         g = Graph.utils.build_graph_from_slices(nodes, 'test_split_groups')
         # zoom_level, zoom = prep_next_summary_layer(g.nucleotide_level())
-        split_groups(g.nucleotide_level())
-        self.assertEqual(len(g.nucleotide_level()), 5)
+        split_groups(g.nucleotide_level)
+        self.assertEqual(len(g.nucleotide_level), 5)
         # simple_merge(g.nucleotide_level())
         # self.assertEqual(len(g.nucleotide_level()), 3)
 
     def test_workflow(self):
         graph = self.create_graph('test')
-        summary1, zoom = prep_next_summary_layer(graph.nucleotide_level())
+        summary1, zoom = prep_next_summary_layer(graph.nucleotide_level)
         self._test_simple_merge(summary1)
         summary2, zoom = prep_next_summary_layer(summary1)
         self._test_neglect_nodes(summary2)

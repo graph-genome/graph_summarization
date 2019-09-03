@@ -1,6 +1,6 @@
 from typing import List, Iterable, Set, Optional
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Max, Min
 
 from Utils.models import CustomSaveManager
 
@@ -17,29 +17,29 @@ class NodeMissingError(ValueError):
 
 
 class ZoomLevelManager(models.Manager):
-    def create(self, graph, zoom) -> 'ZoomLevel':
+    def create(self, graph, zoom, blank_layer=False) -> 'ZoomLevel':
         """Creates a full collection of Paths for the new ZoomLevel that matches the
         previous level's path names, but are now blank."""
-        me = super(ZoomLevelManager, self).create(graph=graph, zoom=zoom) # now saved to DB
-        if zoom == 0:
+        me = super(ZoomLevelManager, self).create(graph=graph, zoom=zoom)  # now saved to DB
+        if zoom == 0 or blank_layer:
             return me  # We've done all the necessary work
         # Copy previous level in entirety
         previous_level = graph.zoomlevel_set.get(zoom=zoom - 1)
-        paths = previous_level.paths.all()
+        Node.objects.bulk_create([Node(name=n.name, zoom=me) for n in previous_level.nodes], 300)
         # TODO: This loop can be sped up by bulk_create and bulk_update
-        for path in paths:
-            name = path.name
-            p = Path(accession=name)  # new Path for a new level
-            p.save()
-            me.paths.add(p)  # linking to current level
-            # nucleotide_path = previous_level.paths.get(accession=name)
-            path.summarized_by = p  # links between levels
-            path.save()
-            #TODO: this is REALLY SLOW AND WASTEFUL!
-            # Makes a full copy of every traversal in the Path so new copies can be edited
-            copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
-                      for traverse in path.nodetraversal_set.all()]
-            NodeTraversal.objects.bulk_create(copies, 100)
+        start = previous_level.paths.aggregate(Max('id'))['rating__max']  # TODO make lazy_paths() generator method
+        stop = previous_level.paths.aggregate(Min('id'))['rating__min']
+        for path_id in range(start, stop):
+            if Path.objects.exists(id=path_id):
+                path = Path.objects.get(id=path_id)
+                name = path.name
+                p = Path(accession=name, zoom=me)  # new Path for a new level
+                p.save()
+                # TODO: this is REALLY SLOW AND WASTEFUL!
+                # Makes a full copy of every traversal in the Path so new copies can be edited
+                copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
+                          for traverse in path.nodetraversal_set.all()]
+                NodeTraversal.objects.bulk_create(copies, 100)
         return me
 
 
@@ -52,26 +52,41 @@ class ZoomLevel(models.Model):
     graph = models.ForeignKey('GraphGenome', on_delete=models.CASCADE)
     zoom = models.IntegerField(default=0)  # Zoom level starts at 0 for nucleotide level and moves up
     # Nodes can be shared between zoom levels.
-    paths = models.ManyToManyField('Path', related_name='zoom_levels', blank=True,
-                                         help_text='One path for each accession in a zoom level.  '
-                                                   'Paths can be reused unmodified in multiple levels.')
     objects = ZoomLevelManager()
 
     class Meta:
         unique_together = ['graph', 'zoom']  # one ZoomLevel at each integer
 
+    @property
+    def paths(self) -> QuerySet:
+        return self.path_set
+
     def __len__(self):
         """The number of unique NodeTraversals in this level"""
-        nodes = self.node_ids()
-        return len(nodes)
+        return self.node_set.count()
 
-    def node_ids(self) -> Set[int]:
-        path_ids = self.paths.values_list('id', flat=True)
-        nodes = set(NodeTraversal.objects.filter(path_id__in=path_ids).values_list('node_id', flat=True))
-        return nodes
+    def __repr__(self):
+        """Warning: the representation strings are very sensitive to whitespace"""
+        return f"Graph: {self.graph.name}\n{self.paths.count()} paths  {self.node_set.count()} layers."
 
-    def nodes(self) -> Iterable['Node']:
-        return Node.objects.filter(id__in=self.node_ids())
+    def __eq__(self, other: 'ZoomLevel'):
+        if isinstance(other, ZoomLevel):
+            return other.node_set.count() == self.node_set.count() and \
+                   other.paths.count() == self.paths.count()  # other.name == self.name and \
+        return False
+
+    def node_ids(self) -> Set[int]: # TODO: optimize
+        # path_ids = self.paths.values_list('id', flat=True)
+        # nodes = set(NodeTraversal.objects.filter(path_id__in=path_ids).values_list('node_id', flat=True))
+        return set(self.node_set.values_list('id', flat=True))
+
+    @property
+    def nodes(self) -> QuerySet:
+        """Getter only.  Shortcut for DB."""
+        return self.node_set.all()
+
+    def node(self, node_name):
+        return Node.objects.get(name=node_name, zoom=self)
 
 
 
@@ -80,7 +95,7 @@ class GraphManager(models.Manager):
     def create(self, **kwargs):
         """When a graph is created.  It should also automatically create the first ZoomLevel."""
         graph = super(GraphManager, self).create(**kwargs)
-        ZoomLevel.objects.create(graph=graph, zoom=0)  # sequence_level created
+        ZoomLevel.objects.create(graph=graph, zoom=0)  # nucleotide_level created
         return graph
 
 
@@ -99,31 +114,32 @@ class GraphGenome(models.Model):
     objects = GraphManager()
 
     @property
-    def sequence_level(self) -> 'ZoomLevel':
+    def nucleotide_level(self) -> 'ZoomLevel':
         return self.zoomlevel_set.filter(zoom=0).first()
 
     @property
     def paths(self) -> QuerySet:
         """Getter only.  Shortcut for DB."""
-        return self.sequence_level.paths
+        return self.nucleotide_level.paths
 
-    @property
-    def nodes(self):
-        """Getter only.  Shortcut for DB."""
-        return self.node_set.all()
+    # @property
+    # def nodes(self):
+    #     """Getter only.  Shortcut for DB."""
+    #     return self.nucleotide_level.nodes
 
-    def nucleotide_level(self):
-        return ZoomLevel.objects.get(graph=self, zoom=0)
+    def __eq__(self, other: 'GraphGenome'):
+        if isinstance(other, GraphGenome):
+            if other.zoomlevel_set.count() == self.zoomlevel_set.count():
+                for a,b in zip(other.zoomlevel_set.all(),self.zoomlevel_set.all()):
+                    if a != b:
+                        return False
+                return True
+            return False
+        return False
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
-        return f"Graph: {self.name}\n{self.paths.count()} paths  {self.node_set.count()} nodes."
-
-    def __eq__(self, other):
-        if isinstance(other, GraphGenome):
-            return other.node_set.count() == self.node_set.count() and \
-                   other.paths.count() == self.paths.count()  # other.name == self.name and \
-        return False
+        return f"Graph: {self.name}\n{self.paths.count()} paths  {self.nucleotide_level.node_set.count()} nodes at base in {self.zoomlevel_set.count()} layers."
 
     @classmethod
     def load_from_xg(cls, file: str, xg_bin: str) -> 'GraphGenome':
@@ -140,22 +156,6 @@ class GraphGenome(models.Model):
         gfa = GFA.from_graph(self)
         gfa.save_as_xg(file, xg_bin)
 
-    def append_node_to_path(self, node_id, strand, path_name, zoom) -> None:
-        """Path.append_node() is preferred over this method, as it is faster and simpler.
-        This will build a graph in a truly non-linear way.
-        Nodes will be created if necessary.
-        NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node
-        (order independent)."""
-        if node_id not in self.nodes:  # hasn't been created yet, need to retrieve from dictionary of guid
-            if isinstance(node_id, str):
-                self.nodes[node_id] = Node('', [], node_id)
-            else:
-                raise ValueError("Provide the id of the node, not", node_id)
-        level = self.zoomlevel_set.get(zoom=zoom)
-        level.paths.get(name=path_name).append_node(Node.objects.get(name=node_id), strand)
-
-    def node(self, node_name):
-        return Node.objects.get(name=node_name, graph=self)
 
     def highest_zoom_level(self):
         return self.zoomlevel_set.all().order_by('-zoom').first().zoom
@@ -169,14 +169,14 @@ class Node(models.Model):
     to fetch the node from GraphGenome.node()."""
     seq = models.CharField(max_length=255, blank=True)
     name = models.CharField(max_length=15)
-    graph = models.ForeignKey(GraphGenome, on_delete=models.CASCADE)
+    zoom = models.ForeignKey(ZoomLevel, on_delete=models.CASCADE)
     summarized_by = models.ForeignKey('Node', null=True, blank=True, on_delete=models.SET_NULL,
                                       related_name='children')
     # Break points for haploblocks - Erik Garrison - service for coordinates
     # Start and stop positions for a node
 
     class Meta:
-        unique_together = ['graph', 'name']
+        unique_together = ['zoom', 'name']
 
     def __len__(self):
         return self.nodetraversal_set.count()
@@ -198,25 +198,21 @@ class Node(models.Model):
     def to_gfa(self, segment_id: int):
         return '\t'.join(['S', str(segment_id), self.seq])
 
-    def specimens(self, zoom_level) -> Set[int]:
-        if isinstance(zoom_level, ZoomLevel):
-            zoom_level = zoom_level.zoom
-        return set(self.traverses(zoom_level).values_list('path_id', flat=True))
+    def specimens(self) -> Set[int]:
+        return set(self.traverses().values_list('path_id', flat=True))
 
-    def traverses(self, zoom_level):
-        if isinstance(zoom_level, ZoomLevel):
-            zoom_level = zoom_level.zoom
-        return self.nodetraversal_set.filter(path__zoom_levels__zoom=zoom_level)
+    def traverses(self) -> QuerySet:
+        return self.nodetraversal_set.all()
 
-    def upstream_ids(self, zoom_level) -> Set[int]:
+    def upstream_ids(self) -> Set[int]:
         """Returns the node ids that are upstream of this node."""
-        traverses = self.traverses(zoom_level)  #.value_list('node_id', flat=True)
+        traverses = self.traverses()  #.value_list('node_id', flat=True)
         # Node.objects.filter(id__in=traverses).values_list('id', flat=True)
         return set(t.upstream_id() for t in traverses)
 
-    def upstream(self, zoom_level) -> Set['Node']:
+    def upstream(self) -> Set['Node']:
         """Returns the node ids that are upstream of this node."""
-        traverses = self.traverses(zoom_level)  #.value_list('node_id', flat=True)
+        traverses = self.traverses()  #.value_list('node_id', flat=True)
         nodes = set()
         for t in traverses:
             n = t.upstream()  # upstream may be None
@@ -224,14 +220,14 @@ class Node(models.Model):
                 nodes.add(n.node)
         return nodes
 
-    def downstream_ids(self, zoom_level) -> Set[int]:
+    def downstream_ids(self) -> Set[int]:
         """Returns the node ids that are downstream of this node."""
-        traverses = self.traverses(zoom_level)
+        traverses = self.traverses()
         return set(t.downstream_id() for t in traverses)
 
-    def downstream(self, zoom_level) -> Set['Node']:
+    def downstream(self) -> Set['Node']:
         """Returns the node ids that are upstream of this node."""
-        traverses = self.traverses(zoom_level)  #.value_list('node_id', flat=True)
+        traverses = self.traverses()  #.value_list('node_id', flat=True)
         return set(t.downstream().node for t in traverses if t.downstream())
 
     def __repr__(self):
@@ -239,9 +235,9 @@ class Node(models.Model):
 
     def details(self, zoom=0):
         return f"""Node{self.name}: {self.seq}
-        upstream: {self.upstream_ids(zoom)}
-        downstream: {self.downstream_ids(zoom)}
-        {len(self.specimens(zoom))} specimens: {self.specimens(zoom)}"""
+        upstream: {self.upstream_ids()}
+        downstream: {self.downstream_ids()}
+        {len(self.specimens())} specimens: {self.specimens()}"""
 
     def is_nothing(self):
         """Useful in Node class definition to check for Node.NOTHING"""
@@ -264,29 +260,16 @@ class Node(models.Model):
 Node.NOTHING = Node(-1)
 
 
-class PathManager(models.Manager):
-    """custom create() methods for consistency and convenience"""
-    def create(self, accession, graph, zoom=0):
-        """Fetches the appropriate ZoomLevel object and creates a link when the Path is first
-        created. """
-        path = super(PathManager, self).create(accession=accession)
-        ZoomLevel.objects.get_or_create(graph=graph, zoom=zoom)[0].paths.add(path)
-        return path
-
-
 class Path(models.Model):
     """Paths represent the linear order of on particular individual (accession) as its genome
     was sequenced.  A path visits a series of nodes and the ordered concatenation of the node
     sequences is the accession's genome.  Create Paths first from accession names, then append
     them to Nodes to link together."""
     accession = models.CharField(max_length=1000)  # one path per accession
-    summarized_by = models.ForeignKey('Path', related_name='summary_child',
-                                      blank=True, null=True, on_delete=models.SET_NULL)
+    zoom = models.ForeignKey(ZoomLevel, on_delete=models.CASCADE)
 
-    objects = PathManager()
-
-    # class Meta:  we need a database check where each accession name only occurs once per zoom level
-    #     unique_together = ['accession', 'zoom_levels']
+    class Meta:  # we need a database check where each accession name only occurs once per zoom level
+        unique_together = ['accession', 'zoom']
 
     def __getitem__(self, path_index):
         return self.nodes.filter(order=path_index)
@@ -307,7 +290,18 @@ class Path(models.Model):
 
     @property
     def graph(self) -> GraphGenome:
-        return self.zoom_levels.first().graph
+        return self.zoom.graph
+
+    @property
+    def name(self):
+        return self.accession
+
+    @property
+    def summary_child(self):
+        if self.zoom.zoom == 0:
+            return None
+        previous_zoom = self.zoom.graph.zoomlevel_set.get(zoom=self.zoom.zoom - 1)
+        return previous_zoom.node_set.get(accession=self.accession)
 
     def append_gfa_nodes(self, nodes):
         assert hasattr(nodes[0], 'orient') and hasattr(nodes[0], 'name'), 'Expecting gfapy.Gfa.path'
@@ -322,8 +316,6 @@ class Path(models.Model):
         NodeTraversal is appended to Path (order dependent) and PathIndex is added to Node (order independent)."""
         NodeTraversal.objects.create(node=node, path=self, strand=strand)  # calculates order
 
-    def name(self):
-        return self.accession
 
     def to_gfa(self):
         return '\t'.join(['P', self.accession, "+,".join([x.node.name + x.strand for x in self.nodes]) + "+", ",".join(['*' for x in self.nodes])])
@@ -350,6 +342,9 @@ class NodeTraversal(models.Model):
                                           'The scale of order is not preserved between zoom levels.')
 
     objects = NodeTraversalManager()
+
+    class Meta:
+        unique_together = ['path', 'order']
 
     def __repr__(self):
         if self.strand == '+':

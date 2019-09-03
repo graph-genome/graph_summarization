@@ -116,7 +116,7 @@ class GFA:
             node_series = ",".join(visits)
             connections = ",".join(['*'] * path.nodes.count())  # count -1?
             gfa.add_line('\t'.join(['P', path.accession, node_series, connections]))
-        for node in graph.nodes:  # in no particular order
+        for node in graph.nucleotide_level.nodes:  # in no particular order
             gfa.add_line('\t'.join(['S', str(node.name), node.seq]))
         return cls(gfa, "from Graph")
 
@@ -124,12 +124,12 @@ class GFA:
         """Create parent object for this genome and save it in the database.
         This can create duplicates appended in Paths if it is called twice."""
         gdb = GraphGenome.objects.create(name=self.source_path)
-        # sequence_level = ZoomLevel.objects.create(graph=gdb, zoom=0)
+        z = gdb.nucleotide_level
         for segment in self.gfa.segments:
-            Node.objects.get_or_create(seq=segment.sequence, name=segment.name, graph=gdb)
+            Node.objects.get_or_create(seq=segment.sequence, name=segment.name, zoom=z)
 
         for path in self.gfa.paths:
-            p = Path.objects.create(accession=path.name, graph=gdb, zoom=0)
+            p = Path.objects.create(accession=path.name, zoom=z)
             p.append_gfa_nodes(path.segment_names)
         return gdb
 

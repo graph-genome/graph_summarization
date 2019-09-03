@@ -4,7 +4,7 @@ from django.test import TestCase
 import os
 from os.path import join
 from Graph.gfa import GFA
-from Graph.models import Node, Path, NodeTraversal
+from Graph.models import Node, Path, NodeTraversal, ZoomLevel
 from Graph.sort import DAGify
 
 # Define the working directory
@@ -56,29 +56,29 @@ class GraphTest(TestCase):
 
     def test_summary_storage(self):
         graph = self.test_example_graph()
-        path = Path.objects.create(graph=graph, accession='a', zoom=1)
-        new_node = Node.objects.create(seq='ACGTCGGA', name='2*2', graph=graph)
-        Node.objects.filter(name__in=['1','2','4']).update(summarized_by=new_node)
+
+        zoom1 = ZoomLevel.objects.create(graph=graph, zoom=1, blank_layer=False)
+        path1 = zoom1.paths.filter(accession='a').first()
+        new_node = Node.objects.create(seq='ACGTCGGA', name='2*2', zoom=zoom1)
+        base_nodes = graph.nucleotide_level.nodes
+        base_nodes.filter(name__in=['1', '2', '4']).update(summarized_by=new_node)
         assert new_node.children.count() == 3
-        for node in Node.objects.filter(name__in=['1','2','4']):
+        zoom1.nodes.filter(name__in=['1', '2', '4']).delete()  # delete copies made redundant in next layer
+        for node in base_nodes.filter(name__in=['1','2','4']):
             assert node.summarized_by_id == new_node.id
-        for i, node_name in enumerate(['2*2', '5', '6']):
-            current = graph.node(node_name)
-            NodeTraversal(node=current, path=path, strand='+', order=i).save()
-        assert NodeTraversal.objects.get(order=0, path=path).downstream().downstream().node.name == '6'
-        assert graph.zoomlevel_set.count() == 2
-        graph.paths.filter(accession='a').update(summarized_by=path)
-        assert bool(path.summary_child), "Path should be linked to its child."
-        zoom1 = graph.zoomlevel_set.get(zoom=1)
-        path_pointers = zoom1.paths
-        assert path_pointers.count() == 1
+        print(list(zoom1.nodes.all()))
+        self.assertEqual(NodeTraversal.objects.get(order=0, path=path1).downstream().downstream().node.name, '4')
+        self.assertEqual(graph.zoomlevel_set.count(), 2)
+        self.assertTrue(path1.summary_child),  # "Path should be linked to its child."
+        self.assertEqual(zoom1.paths.count(), 5)
         # ZoomLevel
-        self.assertEqual(len(zoom1), 3, )
-        self.assertEqual(zoom1.node_ids(),{5, 21, 6}, zoom1.node_ids())
-        self.assertEqual(graph.zoomlevel_set.get(zoom=0).node_ids(), set(range(1,21)))
-        names = [x.name for x in zoom1.nodes()]
+        zoom0 = graph.nucleotide_level
+        self.assertEqual(len(zoom1), len(zoom0) - 2)
+        self.assertEqual(zoom1.node_ids(),set(range(23, 42)),)#{23,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41}
+        self.assertEqual(zoom0.node_ids(), set(range(1,21)))
+        names = [x.name for x in zoom1.nodes]
         self.assertEqual(names, ['5', '6', '2*2'])
-        sequences = [x.seq for x in zoom1.nodes()]
+        sequences = [x.seq for x in zoom1.nodes]
         self.assertEqual(sequences, ['C', 'AGTACG', 'ACGTCGGA'])
 
 
@@ -192,7 +192,7 @@ class GFATest(TestCase):
     def test_load_gfa_to_graph(self):
         graph, gfa = self.make_graph_from_gfa()
         self.assertEqual(graph.paths.count(), 3)
-        self.assertEqual(graph.nodes.count(), 15)
+        self.assertEqual(graph.nucleotide_level.nodes.count(), 15)
 
     def make_graph_from_gfa(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
