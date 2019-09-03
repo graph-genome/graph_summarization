@@ -39,7 +39,7 @@ class ZoomLevelManager(models.Manager):
             # Makes a full copy of every traversal in the Path so new copies can be edited
             copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
                       for traverse in path.nodetraversal_set.all()]
-            NodeTraversal.objects.bulk_create(copies, 500)
+            NodeTraversal.objects.bulk_create(copies, 100)
         return me
 
 

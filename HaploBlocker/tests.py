@@ -26,14 +26,14 @@ class ModelTest(TestCase):
 
 
 class HaploTest(TestCase):
-    # @classmethod
-    # def setUpClass(self) -> None:
-    #     """Reads the input data file once.  Tests that need a fresh graph must
-    #     call create_graph()"""
-    #     print("Setting up HaploTest:", os.getcwd())
-    #     self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
-    #     print("Finished reading SNP file")
-    #     super(HaploTest, self).setUpClass()
+    @classmethod
+    def setUpClass(self) -> None:
+        """Reads the input data file once.  Tests that need a fresh graph must
+        call create_graph()"""
+        print("Setting up HaploTest:", os.getcwd())
+        self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
+        print("Finished reading SNP file")
+        super(HaploTest, self).setUpClass()
 
     def create_graph(self, graph_name):
         """Tests that need a fresh graph must call create_graph() FIRST!
@@ -98,20 +98,19 @@ class HaploTest(TestCase):
                     unique_nodes.add(node)
         assert duplicates_found == 0, f"Found {duplicates_found} duplicated nodes in the graph"
 
-
-    def _test_simple_merge(self, layer : ZoomLevel) -> ZoomLevel:
+    def _test_simple_merge(self, layer: ZoomLevel):
         # these tests could be made independent of test_workflow, but it would be slower
         graph = layer.graph
         zoom_level = layer.zoom
         assert graph.highest_zoom_level() == zoom_level
         self.assertEqual(len(layer), 7180)
         next_level = simple_merge(layer)
-        #Test every Path has a representative in this ZoomLevel
+        # Test every Path has a representative in this ZoomLevel
         self.assertEqual(Path.objects.filter(graph=graph, zoom=zoom_level + 1).count(),
                          Path.objects.filter(graph=graph, zoom=zoom_level + 0).count())
         self.assertEqual(NodeTraversal.objects.filter(graph=graph, zoom=zoom_level+1).count(), 3690) #*501?
 
-    @skip
+
     def test_simple_merge(self):
         graph = self.create_graph('test')
         self._test_simple_merge(graph.nucleotide_level())
@@ -165,8 +164,8 @@ class HaploTest(TestCase):
         # zoom_level, zoom = prep_next_summary_layer(g.nucleotide_level())
         split_groups(g.nucleotide_level())
         self.assertEqual(len(g.nucleotide_level()), 5)
-        simple_merge(g.nucleotide_level())
-        self.assertEqual(len(g.nucleotide_level()), 3)
+        # simple_merge(g.nucleotide_level())
+        # self.assertEqual(len(g.nucleotide_level()), 3)
 
     def test_workflow(self):
         graph = self.create_graph('test')

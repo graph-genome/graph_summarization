@@ -164,13 +164,14 @@ def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
                         x.save()
 
                     # edit existing traversals
+                    path_ids = next_level.paths.values_list('id', flat=True)
                     NodeTraversal.objects.\
-                        filter(node=next_node, path__in=next_level.paths).\
+                        filter(node=next_node, path_id__in=path_ids).\
                         update(node_id=merged_node.id)
                     # next_node.nodetraversal_set.filter(zoom=zoom).bulk_update(node_id=merged_node.id)
 
                     # delete my_node and all associates
-                    query = NodeTraversal.objects.filter(node=my_node, path__in=next_level.paths)
+                    query = NodeTraversal.objects.filter(node=my_node, path_id__in=path_ids)
                     query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
                     # TODO: merged_node.start = my_node.start
     return next_level
