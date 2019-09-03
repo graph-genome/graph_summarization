@@ -1,4 +1,4 @@
-from typing import List, Iterable, Set
+from typing import List, Iterable, Set, Optional
 from django.db import models
 from django.db.models import QuerySet
 
@@ -25,19 +25,21 @@ class ZoomLevelManager(models.Manager):
             return me  # We've done all the necessary work
         # Copy previous level in entirety
         previous_level = graph.zoomlevel_set.get(zoom=zoom - 1)
-        path_names = previous_level.paths.values('accession')
+        paths = previous_level.paths.all()
         # TODO: This loop can be sped up by bulk_create and bulk_update
-        for name in path_names:
+        for path in paths:
+            name = path.name
             p = Path(accession=name)  # new Path for a new level
             p.save()
             me.paths.add(p)  # linking to current level
-            nucleotide_path = previous_level.paths.get(accession=name)
-            nucleotide_path.update(summarized_by=p)  # links between levels
+            # nucleotide_path = previous_level.paths.get(accession=name)
+            path.summarized_by = p  # links between levels
+            path.save()
             #TODO: this is REALLY SLOW AND WASTEFUL!
             # Makes a full copy of every traversal in the Path so new copies can be edited
             copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
-                      for traverse in nucleotide_path.nodetraversal_set]
-            NodeTraversal.objects.create(copies, 500)
+                      for traverse in path.nodetraversal_set.all()]
+            NodeTraversal.objects.bulk_create(copies, 500)
         return me
 
 
@@ -109,6 +111,9 @@ class GraphGenome(models.Model):
     def nodes(self):
         """Getter only.  Shortcut for DB."""
         return self.node_set.all()
+
+    def nucleotide_level(self):
+        return ZoomLevel.objects.get(graph=self, zoom=0)
 
     def __repr__(self):
         """Warning: the representation strings are very sensitive to whitespace"""
@@ -194,18 +199,40 @@ class Node(models.Model):
         return '\t'.join(['S', str(segment_id), self.seq])
 
     def specimens(self, zoom_level) -> Set[int]:
-        return set(self.nodetraversal_set.filter(path__zoomlevel_set__zoom=zoom_level).value_list('path_id', flat=True))
+        if isinstance(zoom_level, ZoomLevel):
+            zoom_level = zoom_level.zoom
+        return set(self.traverses(zoom_level).values_list('path_id', flat=True))
+
+    def traverses(self, zoom_level):
+        if isinstance(zoom_level, ZoomLevel):
+            zoom_level = zoom_level.zoom
+        return self.nodetraversal_set.filter(path__zoom_levels__zoom=zoom_level)
 
     def upstream_ids(self, zoom_level) -> Set[int]:
         """Returns the node ids that are upstream of this node."""
-        traverses = self.nodetraversal_set.filter(path_zoom=zoom_level)  #.value_list('node_id', flat=True)
+        traverses = self.traverses(zoom_level)  #.value_list('node_id', flat=True)
         # Node.objects.filter(id__in=traverses).values_list('id', flat=True)
         return set(t.upstream_id() for t in traverses)
 
+    def upstream(self, zoom_level) -> Set['Node']:
+        """Returns the node ids that are upstream of this node."""
+        traverses = self.traverses(zoom_level)  #.value_list('node_id', flat=True)
+        nodes = set()
+        for t in traverses:
+            n = t.upstream()  # upstream may be None
+            if n:
+                nodes.add(n.node)
+        return nodes
+
     def downstream_ids(self, zoom_level) -> Set[int]:
         """Returns the node ids that are downstream of this node."""
-        traverses = self.nodetraversal_set.filter(path_zoom=zoom_level).all()  # TODO: optimize more
+        traverses = self.traverses(zoom_level)
         return set(t.downstream_id() for t in traverses)
+
+    def downstream(self, zoom_level) -> Set['Node']:
+        """Returns the node ids that are upstream of this node."""
+        traverses = self.traverses(zoom_level)  #.value_list('node_id', flat=True)
+        return set(t.downstream().node for t in traverses if t.downstream())
 
     def __repr__(self):
         return "N%s(%s)" % (str(self.name), self.seq)
@@ -214,7 +241,7 @@ class Node(models.Model):
         return f"""Node{self.name}: {self.seq}
         upstream: {self.upstream_ids(zoom)}
         downstream: {self.downstream_ids(zoom)}
-        {len(self.specimens(zoom))} specimens: {self.specimens}"""
+        {len(self.specimens(zoom))} specimens: {self.specimens(zoom)}"""
 
     def is_nothing(self):
         """Useful in Node class definition to check for Node.NOTHING"""
@@ -343,42 +370,41 @@ class NodeTraversal(models.Model):
 
     def upstream_id(self):
         target_index = self.order - 1
-        return self.neighbor_id(target_index)
-        # try:  This query version can tolerate non-contiguous Path sequences
-        #     return NodeTraversal.objects.\
-        #         filter(path=self.path, order__lte=target_index).\
-        #         order_by('-order').first().values_list('node_id', flat=True)[0]
-        # except (NodeTraversal.DoesNotExist, IndexError):
-        #     return None
+        return self.neighbor_id(target_index, True)
 
     def downstream_id(self):
         target_index = self.order + 1
-        return self.neighbor_id(target_index)
-        # try:  This query version can tolerate non-contiguous Path sequences
-        #     return NodeTraversal.objects.\
-        #         filter(path=self.path, order__gte=target_index).\
-        #         order_by('order').first().values_list('node_id', flat=True)[0]
-        # except (NodeTraversal.DoesNotExist, IndexError):
-        #     return None
+        return self.neighbor_id(target_index, False)
 
-    def neighbor_id(self, target_index):
+    def neighbor_id(self, target_index: int, less_than: bool):
         """Faster query that just retruns the node_id, not the NodeTraversal."""
-        try:
+        try:  # This query version can tolerate non-contiguous Path sequences
+            if less_than:
+                return NodeTraversal.objects.\
+                    filter(path=self.path, order__lte=target_index).\
+                    order_by('-order').values_list('node_id', flat=True).first()
             return NodeTraversal.objects.\
-                get(path=self.path, order=target_index).values_list('node_id', flat=True)[0]
+                filter(path=self.path, order__gte=target_index).\
+                order_by('order').values_list('node_id', flat=True).first()
         except (NodeTraversal.DoesNotExist, IndexError):
             return None
 
-    def neighbor(self, target_index):
-        try:
-            return NodeTraversal.objects.get(path=self.path, order=target_index)
-        except NodeTraversal.DoesNotExist:
+    def neighbor(self, target_index: int, less_than: bool) -> Optional['NodeTraversal']:
+        try:  # This query version can tolerate non-contiguous Path sequences
+            if less_than:
+                return NodeTraversal.objects. \
+                    filter(path=self.path, order__lte=target_index). \
+                    order_by('-order').first()
+            return NodeTraversal.objects. \
+                filter(path=self.path, order__gte=target_index). \
+                order_by('order').first()
+        except (NodeTraversal.DoesNotExist, IndexError):
             return None
 
     def upstream(self) -> 'NodeTraversal':
         """Slower queries that return the neighboring NodeTraversal.  This can be chained."""
-        return self.neighbor(self.order - 1)
+        return self.neighbor(self.order - 1, True)
 
     def downstream(self) -> 'NodeTraversal':
         """Slower queries that return the neighboring NodeTraversal.  This can be chained."""
-        return self.neighbor(self.order + 1)
+        return self.neighbor(self.order + 1, False)

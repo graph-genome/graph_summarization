@@ -134,7 +134,7 @@ def update_stream_transitions(node, stream):
 def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     """ Side effects full_graph by merging any consecutive nodes that have
     identical specimens and removing the redundant my_node from full_graph.
-    :param full_graph:
+    :param current_level: Graph that will be read and edited
     :return: full_graph modified
     """
     #TODO: Paths start fully populated with redundant NodeTraversals.  Editing NodeTraversals,
@@ -152,23 +152,27 @@ def simple_merge(current_level: ZoomLevel) -> ZoomLevel:
     for my_node in current_level.nodes():
         # only one Node Downstream, no matter the number of specimens
         if len(my_node.downstream_ids(zoom)) == 1:
-            next_node = my_node.nodetraversal_set.fist().downstream().node  # fetched from DB
-            if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
-                # Torsten deletes my_node and modifies next_node
-                merged_node = Node.objects.create(name=f'{my_node.name}*{next_level.zoom}',
-                                                  graph=current_level.graph)
-                for x in [my_node, next_node]:
-                    x.summarized_by = merged_node
-                    x.save()
+            d = my_node.nodetraversal_set.first().downstream()
+            if d:
+                next_node = d.node  # fetched from DB
+                if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
+                    # Torsten deletes my_node and modifies next_node
+                    merged_node = Node.objects.create(name=f'{my_node.name}*{next_level.zoom}',
+                                                      graph=current_level.graph)
+                    for x in [my_node, next_node]:
+                        x.summarized_by = merged_node
+                        x.save()
 
-                # edit existing traversals
-                NodeTraversal.objects.filter(node=next_node, path__in=next_level.paths).bulk_update(node_id=merged_node.id)
-                # next_node.nodetraversal_set.filter(zoom=zoom).bulk_update(node_id=merged_node.id)
+                    # edit existing traversals
+                    NodeTraversal.objects.\
+                        filter(node=next_node, path__in=next_level.paths).\
+                        update(node_id=merged_node.id)
+                    # next_node.nodetraversal_set.filter(zoom=zoom).bulk_update(node_id=merged_node.id)
 
-                # delete my_node and all associates
-                query = NodeTraversal.objects.filter(node=my_node, path__in=next_level.paths)
-                query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
-                # TODO: merged_node.start = my_node.start
+                    # delete my_node and all associates
+                    query = NodeTraversal.objects.filter(node=my_node, path__in=next_level.paths)
+                    query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
+                    # TODO: merged_node.start = my_node.start
     return next_level
 
 
@@ -180,48 +184,40 @@ def prep_next_summary_layer(current_level):
     return next_level, zoom
 
 
-def delete_node(node, cutoff):
+def delete_node(node: Node, cutoff: int, layer: ZoomLevel):
     """Changes references to this node to add to references to Node.NOTHING"""
     if cutoff < 1:
         return  # if cutoff is 0, then don't touch upstream and downstream
-    for parent, count in node.upstream.items():
-        parent.downstream[Node.NOTHING] += parent.downstream[node]
-        del parent.downstream[node]
-    for descendant, count in node.downstream.items():
-        descendant.upstream[Node.NOTHING] += descendant.upstream[node]
-        del descendant.upstream[node]
+    node.traverses(layer).delete()
+    node.validate()
 
 
-def neglect_nodes(all_nodes, deletion_cutoff=FILTER_THRESHOLD):
+def neglect_nodes(zoom_level : ZoomLevel, deletion_cutoff=FILTER_THRESHOLD):
     """Deletes nodes if they have too few specimens supporting them defined by
     :param deletion_cutoff
     :returns a new list of nodes lacking the pruned nodes in all_nodes"""
 
     # next_level, zoom = prep_next_summary_layer(current_level)
 
-    nodes_to_delete = set()
-    for node in all_nodes:
-        if len(node.specimens) <= deletion_cutoff:
-            delete_node(node, deletion_cutoff)  # TODO: check if this will orphan
-            nodes_to_delete.add(node)
-    filtered_nodes = [x for x in all_nodes if x not in nodes_to_delete]
-    # TODO: remove orphaned haplotypes in a node that transition to and from zero within a 10 window length
-    return filtered_nodes
+    for node in zoom_level.nodes():  # TODO optimize distinct count
+        if len(node.specimens(zoom_level)) <= deletion_cutoff:
+            delete_node(node, deletion_cutoff, zoom_level)
 
 
-def split_one_group(prev_node, anchor, next_node, level: ZoomLevel):
+def split_one_group(prev_node, anchor, next_node, zoom_level: ZoomLevel):
     """ Called when up.specimens == down.specimens
     Comment: That is actually the case we want to split up to obtain longer blocks later
     Extension of full windows will take care of potential loss of information later"""
 
-    my_specimens = anchor.specimens(level.zoom)  # list of path_ids
-    my_specimens = my_specimens.intersection(prev_node.specimens(level.zoom))
-    my_specimens = my_specimens.intersection(next_node.specimens(level.zoom))
-    new_node = Node.objects.create(graph=level.graph, name=f'{anchor.name}:{level.zoom}')
+    my_specimens = anchor.specimens(zoom_level.zoom)  # list of path_ids
+    my_specimens = my_specimens.intersection(prev_node.specimens(zoom_level.zoom))
+    my_specimens = my_specimens.intersection(next_node.specimens(zoom_level.zoom))
+    new_node = Node.objects.create(graph=zoom_level.graph, name=f'{anchor.name}:{zoom_level.zoom}')
     for a in (prev_node, anchor, next_node):
         a.summarized_by = new_node
         a.save()
-    NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=anchor).update(node_id=new_node.id)
+
+    NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=anchor.id).update(node_id=new_node.id)
     NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=prev_node.id).delete()
     NodeTraversal.objects.filter(path_id__in=my_specimens, node_id=next_node.id).delete()
     # TODO: if this is slow use query._raw_delete
@@ -241,7 +237,7 @@ def update_neighbor_pointers(new_node):
             n.upstream[new_node] = 1
 
 
-def split_groups(all_nodes: List[Node]):
+def split_groups(zoom_level: ZoomLevel):
     """When two haplotypes have a locus in common with no variation, then the graph represents
     this with a single anchor node flanked by 2 haplotypes on either side.  This means 5 Nodes
     are present where 2 would suffice.  Split groups splits the anchor node and gives pieces
@@ -251,32 +247,15 @@ def split_groups(all_nodes: List[Node]):
     Note: This is called crossmerge in the R code.
     TODO: Ideally, the database would retain some record of how many nucleotides are shared between
     the two new haplotype nodes."""
-    new_graph = list(all_nodes)
-    # next_level, zoom = prep_next_summary_layer(current_level)
 
-
-    for node in all_nodes:
+    for node in zoom_level.nodes():
         # check if all transition upstream match with one of my downstream nodes
-        if len(node.specimens) > 0:
+        if len(node.specimens(zoom_level)) > 0:
             # Matchup upstream and downstream with specimen identities
-            for up in tuple(node.upstream.keys()):
-                for down in tuple(node.downstream.keys()):
-                    set1 = copy(up.specimens)
-                    set2 = copy(down.specimens)
-                    if up.is_nothing():
-                        set1 = copy(node.specimens)
-                        for index in tuple(node.upstream.keys()):
-                            if not index.is_nothing():
-                                set1.difference_update(index.specimens)
-                    if down.is_nothing():
-                        set2 = copy(node.specimens)
-                        for index in tuple(node.downstream.keys()):
-                            if not index.is_nothing():
-                                set2.difference_update(index.specimens)
-
-                    if set1 == set2 and len(set1) > 0:
-                        new_node = split_one_group(up, node, down)
-                        new_graph.append(new_node)
-
-    filtered = neglect_nodes(new_graph, 0)  # Delete nodes with zero specimens from the Graph?
-    return filtered
+            for up in node.upstream(zoom_level):
+                set1 = up.specimens(zoom_level)
+                if len(set1):
+                    for down in node.downstream(zoom_level):
+                        set2 = down.specimens(zoom_level)
+                        if set1 == set2 and len(set2) > 0:
+                            new_node = split_one_group(up, node, down, zoom_level)

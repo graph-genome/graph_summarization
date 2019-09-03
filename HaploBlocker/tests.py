@@ -7,7 +7,7 @@ from vgbrowser.settings import BASE_DIR
 import os
 # Create your tests here.
 # from HaploBlocker.models import Node, Path, Edge
-from HaploBlocker.haplonetwork import Node, split_one_group
+from HaploBlocker.haplonetwork import Node, split_one_group, prep_next_summary_layer
 from HaploBlocker.haplonetwork import read_data, build_all_slices, build_paths, nodes_from_unique_signatures, \
     populate_transitions, simple_merge, neglect_nodes, split_groups
 
@@ -26,14 +26,14 @@ class ModelTest(TestCase):
 
 
 class HaploTest(TestCase):
-    @classmethod
-    def setUpClass(self) -> None:
-        """Reads the input data file once.  Tests that need a fresh graph must
-        call create_graph()"""
-        print("Setting up HaploTest:", os.getcwd())
-        self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
-        print("Finished reading SNP file")
-        super(HaploTest, self).setUpClass()
+    # @classmethod
+    # def setUpClass(self) -> None:
+    #     """Reads the input data file once.  Tests that need a fresh graph must
+    #     call create_graph()"""
+    #     print("Setting up HaploTest:", os.getcwd())
+    #     self.alleles, self.individuals = read_data(os.path.join(BASE_DIR, "test_data/KE_chromo10.txt"))
+    #     print("Finished reading SNP file")
+    #     super(HaploTest, self).setUpClass()
 
     def create_graph(self, graph_name):
         """Tests that need a fresh graph must call create_graph() FIRST!
@@ -99,30 +99,31 @@ class HaploTest(TestCase):
         assert duplicates_found == 0, f"Found {duplicates_found} duplicated nodes in the graph"
 
 
-    def _test_simple_merge(self, graph: GraphGenome, zoom_level: int) -> ZoomLevel:
+    def _test_simple_merge(self, layer : ZoomLevel) -> ZoomLevel:
         # these tests could be made independent of test_workflow, but it would be slower
+        graph = layer.graph
+        zoom_level = layer.zoom
         assert graph.highest_zoom_level() == zoom_level
-        starting_level = ZoomLevel.objects.get(graph=graph, zoom=zoom_level)
-        self.assertEqual(len(starting_level), 7180)
-        next_level = simple_merge(starting_level)
+        self.assertEqual(len(layer), 7180)
+        next_level = simple_merge(layer)
         #Test every Path has a representative in this ZoomLevel
         self.assertEqual(Path.objects.filter(graph=graph, zoom=zoom_level + 1).count(),
                          Path.objects.filter(graph=graph, zoom=zoom_level + 0).count())
         self.assertEqual(NodeTraversal.objects.filter(graph=graph, zoom=zoom_level+1).count(), 3690) #*501?
-        return next_level
 
     @skip
     def test_simple_merge(self):
         graph = self.create_graph('test')
-        summary1 = self._test_simple_merge(graph, 0)
+        self._test_simple_merge(graph.nucleotide_level())
 
 
-    def _test_neglect_nodes(self, all_nodes, zoom_level):
-        summary2 = neglect_nodes(all_nodes)
-        assert len(summary2) == 2854
-        unchanged = neglect_nodes(summary2, 0)
-        assert len([n for n in unchanged if len(n.specimens) == 0]) == 0
-        return summary2
+    def _test_neglect_nodes(self, zoom_level : ZoomLevel):
+        neglect_nodes(zoom_level)
+        assert len(zoom_level) == 2854
+        unchanged = neglect_nodes(zoom_level, 0)
+        assert len(zoom_level) == 2854
+        # TODO: assert no orphans
+        # assert len([n for n in unchanged if len(n.specimens(zoom_level)) == 0]) == 0
 
 
     def test_split_one_group(self):
@@ -143,27 +144,41 @@ class HaploTest(TestCase):
         zoom = ZoomLevel.objects.get(graph=g, zoom=0)
         new_node = split_one_group(first, anchor, third, zoom)  # no mentions of minorities [1] or [4]
         print(new_node.details())
-        assert new_node in g.node('90').downstream and g.node('92') in g.node('90').downstream
-        assert g.node('91') not in g.node('90').downstream
-        assert g.node('90') in new_node.upstream and g.node('96') in new_node.downstream
-        assert new_node in g.node('96').upstream and g.node('95') in g.node('96').upstream
-        assert g.node('94') not in g.node('96').upstream
+        self.assertIn(new_node.id, g.node('90').downstream_ids(0))
+        self.assertIn(g.node('92').id, g.node('90').downstream_ids(0))
+        self.assertNotIn(g.node('91').id, g.node('90').downstream_ids(0))
+        self.assertIn(g.node('90').id, new_node.upstream_ids(0))
+        self.assertIn(g.node('96').id, new_node.downstream_ids(0))
+        self.assertIn(new_node.id, g.node('96').upstream_ids(0))
+        self.assertIn(g.node('95').id, g.node('96').upstream_ids(0))
+        self.assertNotIn(g.node('94').id, g.node('96').upstream_ids(0))
 
-    def _test_split_groups(self, graph, zoom_level):
-        summary3 = split_groups(graph)
-        assert len(summary3) > 10
-        return summary3
-
+    def test_split_groups(self):
+        nodes = [
+            ['90', {1, 2, 3, 4}],  # [5]
+            ['91', {1, 2, 4}, '92', {3}],
+            ['93', {1, 2, 3, 4}],  # [2] anchor
+            ['94', {1, 2, 4}, '95', {3}],  # [3] [4]
+            ['96', {1, 2, 3, 4}]  # [6]
+        ]
+        g = Graph.utils.build_graph_from_slices(nodes, 'test_split_groups')
+        # zoom_level, zoom = prep_next_summary_layer(g.nucleotide_level())
+        split_groups(g.nucleotide_level())
+        self.assertEqual(len(g.nucleotide_level()), 5)
+        simple_merge(g.nucleotide_level())
+        self.assertEqual(len(g.nucleotide_level()), 3)
 
     def test_workflow(self):
         graph = self.create_graph('test')
-        summary1 = self._test_simple_merge(graph, 0)
-        summary2 = self._test_neglect_nodes(graph, 1)
-        summary3 = self._test_split_groups(graph, 2)
+        summary1, zoom = prep_next_summary_layer(graph.nucleotide_level())
+        self._test_simple_merge(summary1)
+        summary2, zoom = prep_next_summary_layer(summary1)
+        self._test_neglect_nodes(summary2)
+        summary3, zoom = prep_next_summary_layer(summary2)
+        split_groups(summary3)
         assert len(summary1) > len(summary2) > len(summary3), "Each summarization should result in less nodes"
-        summary4 = simple_merge(summary3, 3)
-        bad = summary3[2]
-        print(bad.details())
+        summary4, zoom = prep_next_summary_layer(summary2)
+        simple_merge(summary4)
 
         # test_signatures = build_all_slices(alleles, individuals)
         # test_individuals = build_paths(individuals, test_signatures)
