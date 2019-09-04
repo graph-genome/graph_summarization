@@ -25,21 +25,17 @@ class ZoomLevelManager(models.Manager):
             return me  # We've done all the necessary work
         # Copy previous level in entirety
         previous_level = graph.zoomlevel_set.get(zoom=zoom - 1)
-        Node.objects.bulk_create([Node(name=n.name, zoom=me) for n in previous_level.nodes], 300)
+        Node.objects.bulk_create([Node(name=n.name, zoom=me) for n in previous_level.nodes_xrange()], 100)
         # TODO: This loop can be sped up by bulk_create and bulk_update
-        start = previous_level.paths.aggregate(Max('id'))['rating__max']  # TODO make lazy_paths() generator method
-        stop = previous_level.paths.aggregate(Min('id'))['rating__min']
-        for path_id in range(start, stop):
-            if Path.objects.exists(id=path_id):
-                path = Path.objects.get(id=path_id)
-                name = path.name
-                p = Path(accession=name, zoom=me)  # new Path for a new level
-                p.save()
-                # TODO: this is REALLY SLOW AND WASTEFUL!
-                # Makes a full copy of every traversal in the Path so new copies can be edited
-                copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
-                          for traverse in path.nodetraversal_set.all()]
-                NodeTraversal.objects.bulk_create(copies, 100)
+        for path in previous_level.path_xrange():
+            name = path.name
+            p = Path(accession=name, zoom=me)  # new Path for a new level
+            p.save()
+            # TODO: this is REALLY SLOW AND WASTEFUL!
+            # Makes a full copy of every traversal in the Path so new copies can be edited
+            copies = [NodeTraversal(path=p, node=traverse.node, strand=traverse.strand, order=traverse.order)
+                      for traverse in path.nodetraversal_set.all()]
+            NodeTraversal.objects.bulk_create(copies, 100)
         return me
 
 
@@ -88,6 +84,25 @@ class ZoomLevel(models.Model):
     def node(self, node_name):
         return Node.objects.get(name=node_name, zoom=self)
 
+    def path_xrange(self):
+        """Lazy evaluation of Paths to ensure that we don't overrun SQL"""
+        start = self.paths.aggregate(Min('id'))['id__min']
+        stop = self.paths.aggregate(Max('id'))['id__max'] + 1
+        for path_id in range(start, stop):
+            try:
+                yield Path.objects.get(id=path_id)
+            except Path.DoesNotExist:
+                pass  # path ids sometimes will have gaps
+
+    def nodes_xrange(self):
+        """Lazy evaluation of Nodes to ensure that we don't overrun SQL"""
+        start = self.nodes.aggregate(Min('id'))['id__min']
+        stop = self.nodes.aggregate(Max('id'))['id__max'] + 1
+        for path_id in range(start, stop):
+            try:
+                yield Node.objects.get(id=path_id)
+            except Node.DoesNotExist:
+                pass  # node ids sometimes will have gaps
 
 
 class GraphManager(models.Manager):
@@ -301,7 +316,7 @@ class Path(models.Model):
         if self.zoom.zoom == 0:
             return None
         previous_zoom = self.zoom.graph.zoomlevel_set.get(zoom=self.zoom.zoom - 1)
-        return previous_zoom.node_set.get(accession=self.accession)
+        return previous_zoom.path_set.get(accession=self.accession)
 
     def append_gfa_nodes(self, nodes):
         assert hasattr(nodes[0], 'orient') and hasattr(nodes[0], 'name'), 'Expecting gfapy.Gfa.path'

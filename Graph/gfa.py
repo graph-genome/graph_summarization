@@ -116,7 +116,7 @@ class GFA:
             node_series = ",".join(visits)
             connections = ",".join(['*'] * path.nodes.count())  # count -1?
             gfa.add_line('\t'.join(['P', path.accession, node_series, connections]))
-        for node in graph.nucleotide_level.nodes:  # in no particular order
+        for node in graph.nucleotide_level.nodes_xrange():  # in no particular order
             gfa.add_line('\t'.join(['S', str(node.name), node.seq]))
         return cls(gfa, "from Graph")
 

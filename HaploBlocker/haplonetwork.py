@@ -103,34 +103,6 @@ def populate_transitions(simplified_individuals):
             #     node.upstream[Node.NOTHING] += 1
 
 
-def update_transition(node):
-    """Only transition values for nodes already listed in upstream and downstream will be calculated."""
-    if not node.is_nothing():
-        update_stream_transitions(node, 'upstream')
-        update_stream_transitions(node, 'downstream')
-
-    return node
-
-
-def update_stream_transitions(node, stream):
-    """This will updated either upstream or downstream transition counts based on the
-    the value of 'stream'.  This is a meta-programming function that requires the exact
-    name of the class field 'upstream' or 'downstream' to work."""
-    g = getattr  #
-    running = g(node, stream).keys()
-    setattr(node, stream, defaultdict(lambda: 0))
-    for n in running:
-        if not n.is_nothing():
-            g(node, stream)[n] = len(node.specimens.intersection(n.specimens))
-    accounted_upstream = sum(g(node, stream).values()) - g(node, stream)[Node.NOTHING]
-    g(node, stream)[Node.NOTHING] = len(node.specimens) - accounted_upstream
-    assert all([count > -1 for count in g(node, stream).values()]), node.details()
-    # Cleans up old keys including Node.NOTHING
-    to_be_deleted = {key for key, count in g(node, stream).items() if count == 0}
-    for key in to_be_deleted:
-        g(node, stream).pop(key, None)
-
-
 def simple_merge(current_level: ZoomLevel) -> bool:
     """ Side effects full_graph by merging any consecutive nodes that have
     identical specimens and removing the redundant my_node from full_graph.
@@ -150,35 +122,31 @@ def simple_merge(current_level: ZoomLevel) -> bool:
     # Node.objects.filter(path_set == )
     modification_happened = False
     path_ids = current_level.paths.values_list('id', flat=True)
-    for node_id in range(1, current_level.node_set.order_by('-id').first().id):
-        try:
-            my_node = Node.objects.get(id=node_id, zoom=current_level)
+    for my_node in current_level.nodes_xrange():
 
-            # only one Node Downstream, no matter the number of specimens
-            if len(my_node.downstream_ids()) == 1:
-                d = my_node.nodetraversal_set.first().downstream()
-                if d:
-                    modification_happened = True
-                    next_node = d.node  # fetched from DB
-                    if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
-                        # Torsten deletes my_node and modifies next_node
-                        merged_node = Node.objects.create(name=f'{my_node.name}*{current_level.zoom}',
-                                                          zoom=current_level)
-                        for x in [my_node, next_node]:
-                            x.summarized_by = merged_node
-                            x.save()  # TODO: doesn't work because reading and writing same layer.  next_node gets deleted soon
+        # only one Node Downstream, no matter the number of specimens
+        if len(my_node.downstream_ids()) == 1:
+            d = my_node.nodetraversal_set.first().downstream()
+            if d:
+                modification_happened = True
+                next_node = d.node  # fetched from DB
+                if my_node.nodetraversal_set.count() == next_node.nodetraversal_set.count():  # Not a complete guarantee...
+                    # Torsten deletes my_node and modifies next_node
+                    merged_node = Node.objects.create(name=f'{my_node.name}*{current_level.zoom}',
+                                                      zoom=current_level)
+                    for x in [my_node, next_node]:
+                        x.summarized_by = merged_node
+                        x.save()  # TODO: doesn't work because reading and writing same layer.  next_node gets deleted soon
 
-                        # edit existing traversals
-                        next_node.nodetraversal_set.\
-                            filter(path_id__in=path_ids).\
-                            update(node_id=merged_node.id)
+                    # edit existing traversals
+                    next_node.nodetraversal_set.\
+                        filter(path_id__in=path_ids).\
+                        update(node_id=merged_node.id)
 
-                        # delete my_node and all associates
-                        query = my_node.nodetraversal_set.filter(path_id__in=path_ids)
-                        query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
-                        # TODO: merged_node.start = my_node.start, length = my_node.length + next_node.length
-        except Node.DoesNotExist:
-            pass  # node ids are not entirely dense
+                    # delete my_node and all associates
+                    query = my_node.nodetraversal_set.filter(path_id__in=path_ids)
+                    query._raw_delete(query.db)  # https://www.nickang.com/fastest-delete-django/
+                    # TODO: merged_node.start = my_node.start, length = my_node.length + next_node.length
     return modification_happened
 
 
@@ -205,7 +173,7 @@ def neglect_nodes(zoom_level : ZoomLevel, deletion_cutoff=FILTER_THRESHOLD):
 
     # next_level, zoom = prep_next_summary_layer(current_level)
 
-    for node in zoom_level.nodes:  # TODO optimize distinct count
+    for node in zoom_level.nodes_xrange():  # TODO optimize distinct count
         if len(node.specimens()) <= deletion_cutoff:
             delete_node(node, deletion_cutoff, zoom_level)
 
@@ -254,7 +222,7 @@ def split_groups(zoom_level: ZoomLevel):
     TODO: Ideally, the database would retain some record of how many nucleotides are shared between
     the two new haplotype nodes."""
 
-    for node in zoom_level.nodes:
+    for node in zoom_level.nodes_xrange():
         # check if all transition upstream match with one of my downstream nodes
         if len(node.specimens()) > 0:
             # Matchup upstream and downstream with specimen identities

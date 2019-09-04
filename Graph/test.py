@@ -56,9 +56,10 @@ class GraphTest(TestCase):
 
     def test_summary_storage(self):
         graph = self.test_example_graph()
-
+        zoom0 = graph.nucleotide_level
         zoom1 = ZoomLevel.objects.create(graph=graph, zoom=1, blank_layer=False)
-        path1 = zoom1.paths.filter(accession='a').first()
+        path1 = zoom1.paths.get(accession='a')
+        self.assertEqual(zoom1.paths.count(), 5)
         new_node = Node.objects.create(seq='ACGTCGGA', name='2*2', zoom=zoom1)
         base_nodes = graph.nucleotide_level.nodes
         base_nodes.filter(name__in=['1', '2', '4']).update(summarized_by=new_node)
@@ -72,11 +73,10 @@ class GraphTest(TestCase):
         self.assertTrue(path1.summary_child),  # "Path should be linked to its child."
         self.assertEqual(zoom1.paths.count(), 5)
         # ZoomLevel
-        zoom0 = graph.nucleotide_level
-        self.assertEqual(len(zoom1), len(zoom0) - 2)
-        self.assertEqual(zoom1.node_ids(),set(range(23, 42)),)#{23,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41}
+        self.assertEqual(len(zoom1), len(zoom0) - 3 + 1)
+        self.assertEqual(zoom1.node_ids(),set(range(23, 42)) - {24},) # 24 deleted
         self.assertEqual(zoom0.node_ids(), set(range(1,21)))
-        names = [x.name for x in zoom1.nodes]
+        names = zoom1.nodes.values_list('name', flat=True)
         self.assertEqual(names, ['5', '6', '2*2'])
         sequences = [x.seq for x in zoom1.nodes]
         self.assertEqual(sequences, ['C', 'AGTACG', 'ACGTCGGA'])
