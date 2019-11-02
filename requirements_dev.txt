@@ -1,6 +1,6 @@
 gfapy==1.0.0
 nose==1.3.7
-Django==2.2.1
+Django==2.2.4
 sqlparse==0.3.0
 numpy==1.16.2
 networkx==2.2
