@@ -86,23 +86,11 @@ class ZoomLevel(models.Model):
 
     def path_xrange(self):
         """Lazy evaluation of Paths to ensure that we don't overrun SQL"""
-        start = self.paths.aggregate(Min('id'))['id__min']
-        stop = self.paths.aggregate(Max('id'))['id__max'] + 1
-        for path_id in range(start, stop):
-            try:
-                yield Path.objects.get(id=path_id)
-            except Path.DoesNotExist:
-                pass  # path ids sometimes will have gaps
+        return self.paths.all().iterator(chunk_size=100)
 
     def nodes_xrange(self):
         """Lazy evaluation of Nodes to ensure that we don't overrun SQL"""
-        start = self.nodes.aggregate(Min('id'))['id__min']
-        stop = self.nodes.aggregate(Max('id'))['id__max'] + 1
-        for path_id in range(start, stop):
-            try:
-                yield Node.objects.get(id=path_id)
-            except Node.DoesNotExist:
-                pass  # node ids sometimes will have gaps
+        return self.paths.all().iterator(chunk_size=100)
 
 
 class GraphManager(models.Manager):
