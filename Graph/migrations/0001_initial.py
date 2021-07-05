@@ -22,8 +22,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Node',
             fields=[
+                ('id', models.AutoField(auto_created=True, default=0, primary_key=True, serialize=False, verbose_name='ID')),
                 ('seq', models.CharField(blank=True, max_length=255)),
-                ('name', models.CharField(max_length=15, primary_key=True, serialize=False)),
+                ('name', models.CharField(max_length=15,serialize=False)),
                 ('graph', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='Graph.GraphGenome')),
             ],
             options={

@@ -6,7 +6,7 @@ import subprocess
 import io
 import os
 import tempfile
-from Graph.models import *
+from Graph.models import Node, Path, GraphGenome
 
 
 def pairwise(iterable):
@@ -103,30 +103,33 @@ class GFA:
         self.gfa.to_file(file)
 
     @classmethod
-    def from_graph(cls, graph: GraphGenome):
+    def from_graph(cls, graph: GraphGenome):  # TODO: should be given ZoomLevel instead
         """Constructs the lines of a GFA file listing paths, then sequence nodes in arbitrary order."""
         gfa = gfapy.Gfa()
-        for path in graph.paths:
-            node_series = ",".join([traverse.node.name + traverse.strand for traverse in path.nodes])
-            gfa.add_line('\t'.join(['P', path.accession, node_series, ",".join(['*' for _ in path.nodes])]))
-        for node in graph.nodes:  # in no particular order
+        for path in graph.paths.all():
+            visits = []
+            # example of using lazy queries and values_list for fast lookup
+            node_infos = path.nodes.values_list('node_id', 'strand', named=True)
+            for traverse in node_infos:
+                name = Node.objects.values_list('name', flat=True).get(id=traverse.node_id)  # fast lookup
+                visits.append(name + traverse.strand)
+            node_series = ",".join(visits)
+            connections = ",".join(['*'] * path.nodes.count())  # count -1?
+            gfa.add_line('\t'.join(['P', path.accession, node_series, connections]))
+        for node in graph.nucleotide_level.nodes_xrange():  # in no particular order
             gfa.add_line('\t'.join(['S', str(node.name), node.seq]))
         return cls(gfa, "from Graph")
-
-    def to_paths(self) -> GraphGenome:
-        graph = self.to_graph()
-        return graph.paths
 
     def to_graph(self) -> GraphGenome:
         """Create parent object for this genome and save it in the database.
         This can create duplicates appended in Paths if it is called twice."""
-        gdb = GraphGenome.objects.get_or_create(name=self.source_path)[0]
+        gdb = GraphGenome.objects.create(name=self.source_path)
+        z = gdb.nucleotide_level
         for segment in self.gfa.segments:
-            Node.objects.get_or_create(seq=segment.sequence, name=(segment.name), graph=gdb)
+            Node.objects.get_or_create(seq=segment.sequence, name=segment.name, zoom=z)
 
         for path in self.gfa.paths:
-            p = Path(accession=path.name, graph=gdb)
-            p.save()
+            p = Path.objects.create(accession=path.name, zoom=z)
             p.append_gfa_nodes(path.segment_names)
         return gdb
 

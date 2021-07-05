@@ -1,15 +1,14 @@
 import unittest
-from datetime import datetime
 
 from django.test import TestCase
-from typing import List
 import os
 from os.path import join
 from Graph.gfa import GFA
-from Graph.models import Node, GraphGenome, Path
+from Graph.models import Node, Path, NodeTraversal, ZoomLevel
 from Graph.sort import DAGify
 
 # Define the working directory
+from Graph.utils import build_graph_from_slices
 from vgbrowser.settings import BASE_DIR
 PATH_TO_TEST_DATA = join(BASE_DIR, "test_data")
 location_of_xg = join(BASE_DIR, "test_data","xg")
@@ -17,34 +16,6 @@ location_of_xg = join(BASE_DIR, "test_data","xg")
 
 a, b, c, d, e = 'a', 'b', 'c', 'd', 'e'  # Paths must be created first
 x, y, z = 'x', 'y', 'z'
-
-
-def build_from_test_slices(cmd: List):
-    """This factory uses test data shorthand for linear graph slices to build
-    a database GraphGenome with all the necessary Paths and Nodes.  Path order populated in the order
-    that they are mentioned in the slices.  Currently, this is + only and does not support non-linear
-    orderings.  Use Path.append_node() to build non-linear graphs."""
-    if isinstance(cmd, str):
-        cmd = eval(cmd)
-    # preemptively grab all the path names from every odd list entry
-    graph = GraphGenome.objects.get_or_create(name='test_data')[0]  # + str(datetime.now())
-    node_count = 0
-    paths = {key for sl in cmd for i in range(0, len(sl), 2) for key in sl[i + 1]}
-    path_objs = {}
-    for path_name in paths:
-        path_objs[path_name] = Path.objects.get_or_create(graph=graph, accession=path_name)[0]
-    for sl in cmd:
-        try:
-            for i in range(0, len(sl), 2):
-                paths_mentioned = [path_objs[key] for key in sl[i + 1]]
-                node, is_new = Node.objects.get_or_create(seq=sl[i], name=graph.name + str(node_count), graph=graph)
-                node_count += 1
-                for path in paths_mentioned:
-                    path.append_node(node, '+')
-        except IndexError:
-            raise IndexError("Expecting two terms: ", sl[0])  # sl[i:i+2])
-
-    return graph
 
 
 class GraphTest(TestCase):
@@ -65,23 +36,55 @@ class GraphTest(TestCase):
 
     def test_graph_factory(self):
         original_test = [['ACGT', {a, b, c, d}],
-                        ['C', {a, b, d}, 'T', {c}],  # SNP
+                        ['C',   {a, b, d}, 'T', {c}],  # SNP
                         ['GGA', {a, b, c, d}],  # anchor
-                        ['C', {a, b, d}],  # [3] repeated from [1] SNP
+                        ['C',   {a, b, d}],  # [3] repeated from [1] SNP
                         ['AGTACG', {a, b, c}, 'CGTACT', {d}],  # [4] different membership from [3]
-                        ['TTG', {a, b, c, d}],  # [5] anchor
+                        ['TTG',    {a, b, c, d}],  # [5] anchor
                         ['A', {a, b}, 'C', {d, e}, 'T', {c}],  # [6] third allele
                         ['GG', {a, b}, 'TT', {c, d}],  # [7] equal size nodes
                         ['C', {a, b, c, e}, 'T', {d}],  # [8] path slip
                         ['C', {a, b, e}, 'T', {c, d}],  # [9] path slip
                         ['C', {a, b, c}, 'T', {d}],  # [10]path slip
                         ['TATA', {a, b, c, d}]]  # [11] anchor
-        g1, g2 = build_from_test_slices(original_test), build_from_test_slices(original_test)
+        g1, g2 = build_graph_from_slices(original_test), build_graph_from_slices(original_test)
         assert g1 == g2, \
             ('\n' + repr(g1) + '\n' + repr(g2))
         g_from_GFA = self.test_example_graph()  # comes from matching
         assert g1 == g_from_GFA, repr(g1) + '\n' + repr(g_from_GFA)
+        # TODO: stricter equality checks: currently just counting nodes
 
+    def test_summary_storage(self):
+        graph = self.test_example_graph()
+        zoom0 = graph.nucleotide_level
+        zoom1 = ZoomLevel.objects.create(graph=graph, zoom=1, blank_layer=False)
+        path1 = zoom1.paths.get(accession='a')
+        self.assertEqual(zoom1.paths.count(), 5)
+        new_node = Node.objects.create(seq='ACGTCGGA', name='2*2', zoom=zoom1)
+        base_nodes = graph.nucleotide_level.nodes
+        base_nodes.filter(name__in=['1', '2', '4']).update(summarized_by=new_node)
+        assert new_node.children.count() == 3
+        zoom1.nodes.filter(name__in=['1', '2', '4']).delete()  # delete copies made redundant in next layer
+        for node in base_nodes.filter(name__in=['1','2','4']):
+            assert node.summarized_by_id == new_node.id
+        print(list(zoom1.nodes.all()))
+        self.assertEqual(NodeTraversal.objects.get(order=0, path=path1).downstream().downstream().node.name, '4')
+        self.assertEqual(graph.zoomlevel_set.count(), 2)
+        self.assertTrue(path1.summary_child),  # "Path should be linked to its child."
+        self.assertEqual(zoom1.paths.count(), 5)
+        # ZoomLevel
+        self.assertEqual(len(zoom1), len(zoom0) - 3 + 1)
+        self.assertEqual(zoom1.node_ids(),set(range(23, 42)) - {24},) # 24 deleted
+        self.assertEqual(zoom0.node_ids(), set(range(1,21)))
+        names = zoom1.nodes.values_list('name', flat=True)
+        self.assertEqual(names, ['5', '6', '2*2'])
+        sequences = [x.seq for x in zoom1.nodes]
+        self.assertEqual(sequences, ['C', 'AGTACG', 'ACGTCGGA'])
+
+
+    # def test_zoom_level(self):
+    #     graph = self.test_example_graph()
+    #     node_ids
 
 @unittest.skip  # DAGify has not been converted to databases yet.
 class DAGifyTest(TestCase):
@@ -93,16 +96,16 @@ class DAGifyTest(TestCase):
 
     def test_dagify(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile = dagify.generate_profiles(0)
 
         # self.assertEqual([['CAAATAAG', {x,y,z}], ['A', {y,z}, 'G', {x}], ['C', {x,y,z}], ['TTG', {x,y,z}], ['A', {z}, 'G', {x,y}], ['AAATTTTCTGGAGTTCTAT', {x,y,z}], ['T', {x,y,z}], ['ATAT', {x,y,z}], ['T', {x,y,z}], ['CCAACTCTCTG', {x,y,z}]], graph)
 
     def test_dagify2(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test2.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile = dagify.generate_profiles(0)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # x,y,z,a = 'x', 'y', 'z', 'a'
@@ -110,8 +113,8 @@ class DAGifyTest(TestCase):
 
     def test_dagify3(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test3.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 1)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -119,8 +122,8 @@ class DAGifyTest(TestCase):
 
     def test_dagify_altpath(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "alternate_paths.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 1)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -128,8 +131,8 @@ class DAGifyTest(TestCase):
 
     def test_dagify_dup(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "duplicate.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         self.assertEqual(rep_count, 2)
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
@@ -138,8 +141,8 @@ class DAGifyTest(TestCase):
 
     def test_unresolved_repreat(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "unresolved_repeat.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual([['CAAATAAG', {'x'}, 'T', {'y'}], ['A', {'y', 'x'}], ['G', {'x'}, 'C', {'y'}]], graph)
@@ -147,8 +150,8 @@ class DAGifyTest(TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "inversion.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual(graph, [])
@@ -156,8 +159,8 @@ class DAGifyTest(TestCase):
     @unittest.skip("Inversion is unsupported")
     def test_nested_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "nested_inv.gfa"))
-        paths = gfa.to_paths()
-        dagify = DAGify(paths)
+        graph = gfa.to_graph()
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual(graph, [])
@@ -166,7 +169,7 @@ class DAGifyTest(TestCase):
     def test_simple_inversion(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "simple_inv.gfa"))
         graph = gfa.to_graph()
-        dagify = DAGify(graph.paths)
+        dagify = DAGify(graph)
         profile, rep_count = dagify.generate_profiles_with_minimizing_replications()
         # graph = SlicedGraph.load_from_slices(dagify.to_slices(profile), paths)
         # self.assertEqual(graph, [['CAAATAAG', {x,y}], ['AC', {x}, 'AC', {y}], ['G', {x, y}]])
@@ -189,7 +192,7 @@ class GFATest(TestCase):
     def test_load_gfa_to_graph(self):
         graph, gfa = self.make_graph_from_gfa()
         self.assertEqual(graph.paths.count(), 3)
-        self.assertEqual(graph.nodes.count(), 15)
+        self.assertEqual(graph.nucleotide_level.nodes.count(), 15)
 
     def make_graph_from_gfa(self):
         gfa = GFA.load_from_gfa(join(PATH_TO_TEST_DATA, "test.gfa"))
@@ -213,10 +216,10 @@ class GFATest(TestCase):
         graph2 = GFA.load_from_xg(join(PATH_TO_TEST_DATA, "test.xg"), location_of_xg)
         graph = graph2.to_graph()
         x,y,z = 'x','y','z'
-        self.assertEqual(graph, build_from_test_slices([['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}],
-                                  ['C', {x, y, z}], ['TTG', {x, y, z}],
-                                 ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
-                                 ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]]))
+        self.assertEqual(graph, build_graph_from_slices([['CAAATAAG', {x, y, z}], ['A', {y, z}, 'G', {x}],
+                                                         ['C', {x, y, z}], ['TTG', {x, y, z}],
+                                                         ['A', {z}, 'G', {x, y}], ['AAATTTTCTGGAGTTCTAT', {x, y, z}], ['T', {x, y, z}],
+                                                         ['ATAT', {x, y, z}], ['T', {x, y, z}], ['CCAACTCTCTG', {x, y, z}]]))
 
     @staticmethod
     def is_different(gfa1, gfa2):

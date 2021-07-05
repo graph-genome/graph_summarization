@@ -8,10 +8,9 @@ python:
 # Command to install dependencies, e.g. pip install -r requirements_dev.txt --use-mirrors
 install:
   - pip install -r requirements_dev.txt
-  - python manage.py migrate
+  - python manage.py migrate Graph
 
 env:
-  - DJANGO_VERSION=2.2.1
   - DJANGO_SETTINGS_MODULE=vgbrowser.settings
 
 # Command to run tests, e.g. python setup.py test
